@@ -10,4 +10,6 @@ export const links = (appBase) => ({
   jobAnalysis: (id) => `${appBase}/jobs?open=${encodeURIComponent(id)}`,
   applications: () => `${appBase}/applications`,
   cvLibrary: () => `${appBase}/cv-library`,
+  myCv: () => `${appBase}/my-cv`,
+  tailorMyCv: (jobId) => `${appBase}/my-cv?tailor=${encodeURIComponent(jobId)}`,
 });

@@ -39,7 +39,8 @@ const FIT = {
   tailoring_can_meet_minimum: true, potential_score: 84,
 };
 const JOB = (fit = FIT, application = { id: 9, status: 'waiting', applied_on: null }) => ({ data: { id: 55, title: 'Delivery Manager', company: 'Acme Bank', candidate_fit: fit, application } });
-const ME = (cv_count = 2) => [200, { user: USER, role: 'seeker', cv_count }];
+const ME = (cv_count = 2, my_cv = { id: 9, version_number: 3, updated_at: '2026-10-20T10:00:00Z' }) => [200, { user: USER, role: 'seeker', cv_count, my_cv }];
+const TRACK = (status = 'waiting', next = ['applied', 'withdrawn'], applied_on = null) => [200, { id: 9, status, applied_on, next }];
 
 test('not connected: the seeker pitch and Connect', async () => {
   await x.disconnectLocally();
@@ -51,16 +52,21 @@ test('not connected: the seeker pitch and Connect', async () => {
   await popup.close();
 });
 
-test('check a job: review, match, requirements, next step, then I have applied', async () => {
+test('check a job: review, match, requirements, next step, tracker, tailor', async () => {
   await x.connectAs(USER, 'seeker');
   await x.mockApi({
     'GET /extension/me': ME(),
     'POST /extension/capture': [200, CAPTURED],
     'POST /extension/seeker/jobs': [201, JOB()],
-    'POST /extension/seeker/jobs/55/applied': [200, { id: 9, status: 'applied', applied_on: '2026-10-21', already: false }],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'POST /extension/seeker/jobs/55/status': (req) => {
+      const to = JSON.parse(req.postData()).status;
+      return to === 'applied' ? TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], '2026-10-21') : TRACK(to, ['offer', 'rejected', 'withdrawn'], '2026-10-21');
+    },
   });
   const { job, popup } = await x.popupOnJob();
   await expect(popup.locator('#who')).toContainText('Amy Jones');
+  await expect(popup.getByText('Your Master CV: version 3, saved 2026-10-20.')).toBeVisible();
   await popup.getByRole('button', { name: 'Check this job' }).click();
   await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toBeVisible();
   await expect(popup.getByLabel('Employer')).toHaveValue('Acme Bank');
@@ -81,20 +87,55 @@ test('check a job: review, match, requirements, next step, then I have applied',
   expect(sent.body).toMatchObject({ title: 'Delivery Manager', company: 'Acme Bank' });
   expect(sent.body.salary).toBeUndefined();
 
-  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 980 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-result.png`, fullPage: true });
-
+  // Tracker: exactly the moves ATS Engine sent.
+  await expect(popup.getByRole('heading', { name: 'Application Tracker' })).toBeVisible();
+  await expect(popup.getByText('Waiting', { exact: true })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Got an offer' })).toHaveCount(0);
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1200 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-result.png`, fullPage: true });
   await popup.getByRole('button', { name: "I've applied" }).click();
-  await expect(popup.getByText('Marked as applied today (2026-10-21) in your Application Tracker.')).toBeVisible();
+  await expect(popup.getByText('Marked as applied (2026-10-21).')).toBeVisible();
   await expect(popup.getByRole('button', { name: "I've applied" })).toHaveCount(0);
+  await popup.getByRole('button', { name: 'Got an interview' }).click();
+  await expect(popup.getByText('Moved to Interview.')).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Got an offer' })).toBeVisible();
 
+  // Tailor: CV Creator on this job; nothing changes from the popup.
+  await expect(popup.getByText(/saving makes it your active CV \(version 4\)/)).toBeVisible();
+  await popup.getByRole('button', { name: 'Tailor my CV for this job' }).click();
   await popup.getByRole('button', { name: 'View full analysis' }).click();
-  await popup.getByRole('button', { name: 'Tailor my CV' }).click();
-  await popup.getByRole('button', { name: 'Application Tracker' }).click();
+  await popup.getByRole('button', { name: 'Open Application Tracker' }).click();
   expect(await popup.evaluate(() => window.__opened)).toEqual([
-    'https://app.ats-engine.com/jobs?open=55',
+    'https://app.ats-engine.com/my-cv?tailor=55',
     'https://app.ats-engine.com/jobs?open=55',
     'https://app.ats-engine.com/applications',
   ]);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('no Master CV yet: tailoring starts by building it', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({ 'GET /extension/me': ME(2, null), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()], 'GET /extension/seeker/jobs/55/application': TRACK() });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await popup.getByRole('button', { name: 'Build your Master CV to tailor it' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/my-cv']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('a move the tracker refuses shows why', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'POST /extension/seeker/jobs/55/status': [422, { message: 'Your Application Tracker cannot move this job from applied to applied.', application: { id: 9, status: 'applied', applied_on: '2026-10-19', next: ['interviewing', 'rejected', 'withdrawn'] } }],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await popup.getByRole('button', { name: "I've applied" }).click();
+  await expect(popup.getByText(/cannot move this job/)).toBeVisible();
+  await expect(popup.getByText('Applied', { exact: true })).toBeVisible();
   await Promise.all([job.close(), popup.close()]);
 });
 
@@ -106,7 +147,7 @@ test('below the minimum but tailoring can reach it: Tailor first', async () => {
   await popup.getByRole('button', { name: 'Check my match' }).click();
   await expect(popup.getByRole('heading', { name: 'Tailor your CV first' })).toBeVisible();
   await expect(popup.getByText(/would take it to 84%/)).toBeVisible();
-  await expect(popup.getByRole('button', { name: 'Tailor my CV in ATS Engine' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Tailor my CV for this job' })).toBeVisible();
   await Promise.all([job.close(), popup.close()]);
 });
 

@@ -92,5 +92,7 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     // Job seeker extension.
     checkMatch: (fields) => request('/extension/seeker/jobs', { method: 'POST', body: fields }),
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),
+    seekerApplication: (jobId) => request(`/extension/seeker/jobs/${jobId}/application`),
+    setStatus: (jobId, status) => request(`/extension/seeker/jobs/${jobId}/status`, { method: 'POST', body: { status } }),
   };
 }

@@ -20,12 +20,14 @@ import { links } from './core/links.js';
 import { h, notice, fill } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { summarise, EVIDENCE } from './core/match.js';
+import { STATUS, MOVE, statusLabel } from './core/tracker.js';
 
 const app = document.getElementById('app');
 const who = document.getElementById('who');
 const foot = document.getElementById('foot');
 const to = links(CONFIG.appBase);
 let cvCount = null;
+let myCv = null; // the CV Creator's one active CV, if built
 
 const api = createApi({
   baseUrl: CONFIG.apiBase,
@@ -80,6 +82,9 @@ function homeScreen(message) {
       h('h1', { text: 'Check this job' }),
       h('p', { class: 'muted', text: 'Reads the job advert on this page so you can check it before ATS Engine matches it to your CV. Tip: highlight the job description first on sites that hide it.' }),
       h('button', { class: 'btn', type: 'button', text: 'Check this job', onclick: capture }),
+      myCv
+        ? h('p', { class: 'for', text: `Your Master CV: version ${myCv.version_number}${myCv.updated_at ? `, saved ${myCv.updated_at.slice(0, 10)}` : ''}.` })
+        : null,
     ),
   );
 }
@@ -148,7 +153,6 @@ function resultScreen(job) {
   const fit = job?.candidate_fit || null;
   const s = summarise(fit, { cvCount, application: job?.application });
   const id = job?.id;
-  const status = h('div');
 
   const reqList = s.requirements.length
     ? h(
@@ -161,19 +165,10 @@ function resultScreen(job) {
       )
     : null;
 
-  const applied = async () => {
-    status.replaceChildren(notice('ok', 'Updating your Application Tracker…'));
-    try {
-      const a = await api.markApplied(id);
-      status.replaceChildren(notice('ok', a.already ? 'Already marked as applied in your Application Tracker.' : `Marked as applied today (${a.applied_on}) in your Application Tracker.`));
-      appliedBtn.remove();
-    } catch (err) {
-      if (err.status === 401) return connectScreen(err.message);
-      status.replaceChildren(notice('bad', err.message));
-    }
-  };
-  const appliedBtn = h('button', { class: 'btn secondary', type: 'button', text: "I've applied", onclick: applied });
   const tailorFirst = s.next.kind === 'tailor';
+  const canTailor = fit?.meets_minimum || fit?.tailoring_can_meet_minimum;
+  const tracker = id ? h('div', { class: 'card' }, h('p', { class: 'muted', text: 'Checking your Application Tracker…' })) : null;
+  if (tracker) loadTracker(tracker, id);
 
   show(
     h(
@@ -200,22 +195,80 @@ function resultScreen(job) {
       s.requirements.length > 8 ? h('p', { class: 'muted', style: 'margin-top:6px', text: `and ${s.requirements.length - 8} more in the full analysis.` }) : null,
       s.cv ? h('p', { class: 'muted', style: 'margin-top:10px', text: `Matched against ${s.cv}` }) : null,
     ),
+    tracker,
     h(
       'div',
       { class: 'card' },
-      status,
       s.next.kind === 'upload' ? h('button', { class: 'btn', type: 'button', text: 'Upload your CV', onclick: () => open(to.cvLibrary()) }) : null,
-      id
-        ? h('button', { class: `btn${tailorFirst ? ' green' : ''}`, type: 'button', text: tailorFirst ? 'Tailor my CV in ATS Engine' : 'View full analysis', onclick: () => open(to.jobAnalysis(id)) })
-        : null,
-      id && !tailorFirst && (fit?.meets_minimum || fit?.tailoring_can_meet_minimum)
-        ? h('button', { class: 'btn secondary', type: 'button', text: 'Tailor my CV', onclick: () => open(to.jobAnalysis(id)) })
-        : null,
-      id && !s.applied ? appliedBtn : null,
-      h('button', { class: 'btn secondary', type: 'button', text: 'Application Tracker', onclick: () => open(to.applications()) }),
+      id && (tailorFirst || canTailor) ? tailorBlock(id, tailorFirst) : null,
+      id ? h('button', { class: `btn${tailorFirst ? ' secondary' : ''}`, type: 'button', text: 'View full analysis', onclick: () => open(to.jobAnalysis(id)) }) : null,
       h('button', { class: 'btn secondary', type: 'button', text: 'Check another job', onclick: start }),
     ),
   );
+}
+
+/*
+ * Tailor my CV (Phase 2): the CV Creator's own Tailor to job, opened on
+ * this job. The candidate reviews every suggested change there, and saving
+ * makes the tailored version their one active CV - the old one stays in
+ * the version history. Nothing is changed from the popup.
+ */
+function tailorBlock(jobId, primary) {
+  if (!myCv) {
+    return h(
+      'div',
+      { style: 'margin-bottom:8px' },
+      h('button', { class: `btn${primary ? ' green' : ''}`, type: 'button', text: 'Build your Master CV to tailor it', onclick: () => open(to.myCv()) }),
+      h('p', { class: 'for', text: 'Tailoring works on your Master CV in CV Creator. Build it once from your profile or an uploaded CV.' }),
+    );
+  }
+  return h(
+    'div',
+    { style: 'margin-bottom:8px' },
+    h('button', { class: `btn${primary ? ' green' : ''}`, type: 'button', text: 'Tailor my CV for this job', onclick: () => open(to.tailorMyCv(jobId)) }),
+    h('p', { class: 'for', text: `Opens CV Creator on this job. You check every change; saving makes it your active CV (version ${myCv.version_number + 1}) and keeps the old one in your history.` }),
+  );
+}
+
+/* Where this job is in the Application Tracker, and the moves ATS Engine allows from there. */
+async function loadTracker(card, jobId) {
+  const render = (a, message) => {
+    const st = STATUS[a.status] || { tone: 'warn' };
+    fill(
+      card,
+      h('h2', { text: 'Application Tracker' }),
+      h('p', {}, 'This job is ', h('span', { class: `pill ${st.tone}`, text: statusLabel(a.status) }), a.applied_on ? ` · applied ${a.applied_on}` : ''),
+      message ? notice('ok', message) : null,
+      ...(a.next || []).map((n) =>
+        h('button', {
+          class: `btn ${n === 'applied' ? '' : 'secondary'}`.trim(),
+          type: 'button',
+          text: MOVE[n] || n,
+          onclick: async () => {
+            try {
+              const moved = await api.setStatus(jobId, n);
+              render(moved, n === 'applied' ? `Marked as applied (${moved.applied_on}).` : `Moved to ${statusLabel(moved.status)}.`);
+            } catch (err) {
+              if (err.status === 401) return connectScreen(err.message);
+              render(err.body?.application || a, null);
+              card.append(notice('bad', err.message));
+            }
+          },
+        }),
+      ),
+      h('button', { class: 'link', type: 'button', style: 'margin-top:8px', text: 'Open Application Tracker', onclick: () => open(to.applications()) }),
+    );
+  };
+  try {
+    render(await api.seekerApplication(jobId));
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    card.replaceChildren(
+      h('h2', { text: 'Application Tracker' }),
+      h('p', { class: 'muted', text: err.status === 404 ? 'This job is not in your Application Tracker yet.' : err.message }),
+      h('button', { class: 'link', type: 'button', text: 'Open Application Tracker', onclick: () => open(to.applications()) }),
+    );
+  }
 }
 
 function handleError(err) {
@@ -235,6 +288,7 @@ async function start() {
       return connectScreen('You are signed in with a recruiter account. This is the job seeker extension - use ATS Engine for Recruiters instead, and you can remove this one.');
     }
     cvCount = typeof me.cv_count === 'number' ? me.cv_count : null;
+    myCv = me.my_cv || null;
     showWho({ ...connection, user: me.user });
     homeScreen();
   } catch (err) {
