@@ -19,6 +19,7 @@ import { VACANCY_FIELDS, DUPLICATE_REASONS, cleanFields, missingRequired } from 
 import { h, notice, fill } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { links } from './core/links.js';
+import { advertChecks, advertImprovements, matchSummary, CHECK_STATUS } from './core/intelligence.js';
 
 const app = document.getElementById('app');
 const who = document.getElementById('who');
@@ -190,6 +191,19 @@ function doneScreen(job) {
   const id = job?.id;
   const how = job?._dedup_status || job?.dedup_status;
   const title = how === 'unchanged' ? 'Already up to date' : how === 'updated' ? 'Vacancy updated' : 'Vacancy created';
+  const panel = h('div');
+
+  // Phase 2: ATS Engine's own engines, one click each, shown below.
+  const run = (label, call, render) => async () => {
+    panel.replaceChildren(h('div', { class: 'card' }, h('p', { class: 'muted', text: `${label}…` })));
+    try {
+      panel.replaceChildren(render(await call()));
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      panel.replaceChildren(notice('bad', err.message));
+    }
+  };
+
   show(
     h(
       'div',
@@ -197,10 +211,79 @@ function doneScreen(job) {
       h('h1', { text: title }),
       h('p', {}, h('strong', { text: job?.title || '' }), job?.location ? ` · ${job.location}` : '', job?.salary ? ` · ${job.salary}` : ''),
       how === 'unchanged' ? h('p', { class: 'muted', text: 'Everything on the page was already on the vacancy.' }) : null,
-      id ? h('button', { class: 'btn', type: 'button', text: 'Open in ATS Engine', onclick: () => open(to.vacancy(id)) }) : null,
-      id ? h('button', { class: 'btn secondary', type: 'button', text: 'Run Advert Health', onclick: () => open(to.advertHealth(id)) }) : null,
+      id ? h('div', { class: 'tri' },
+        h('button', { class: 'btn', type: 'button', text: 'Match my database', onclick: run('Matching your candidates', () => api.matchDatabase(id), (r) => matchPanel(r, id)) }),
+        h('button', { class: 'btn secondary', type: 'button', text: 'Advert Health', onclick: run('Running Advert Health', () => api.advertHealth(id), (r) => advertPanel(r, id)) }),
+        h('button', { class: 'btn secondary', type: 'button', text: 'Job Analysis', onclick: run('Reading the vacancy', () => api.jobAnalysis(id), (r) => analysisPanel(r, id)) }),
+      ) : null,
+    ),
+    panel,
+    h(
+      'div',
+      { class: 'card' },
+      id ? h('button', { class: 'btn secondary', type: 'button', text: 'Open in ATS Engine', onclick: () => open(to.vacancy(id)) }) : null,
       h('button', { class: 'btn secondary', type: 'button', text: 'Capture another job', onclick: start }),
     ),
+  );
+}
+
+function matchPanel(res, jobId) {
+  const s = matchSummary(res);
+  return h(
+    'div',
+    { class: 'card' },
+    h('h2', { text: s.headline }),
+    s.detail ? h('p', { class: 'muted', text: s.detail }) : null,
+    s.rows.length ? h('div', { class: 'bands' }, s.rows.map((r) => h('div', { class: `bandrow ${r.band}` }, h('strong', { text: String(r.count) }), h('span', { text: r.label })))) : null,
+    s.top.length ? h('h2', { style: 'margin-top:12px', text: 'Best matches' }) : null,
+    s.top.length
+      ? h('ul', { class: 'people' }, s.top.map((c) => h('li', {},
+          h('span', { class: `sc ${c.band}`, text: `${c.score}%` }),
+          h('span', { class: 'who' }, h('strong', { text: c.name || 'Unnamed' }), h('span', { class: 'muted', text: [c.headline, c.location].filter(Boolean).join(' · ') })),
+          h('button', { class: 'link', type: 'button', text: 'View', onclick: () => open(to.candidate(c.id)) }),
+        )))
+      : null,
+    h('p', { class: 'muted', style: 'margin-top:8px', text: 'Scored with the same fit as the Job Analysis card, against your desk minimum.' }),
+    h('button', { class: 'link', type: 'button', text: 'Open the vacancy in ATS Engine', onclick: () => open(to.vacancy(jobId)) }),
+  );
+}
+
+function advertPanel(report, jobId) {
+  const checks = advertChecks(report);
+  const tips = advertImprovements(report);
+  return h(
+    'div',
+    { class: 'card' },
+    h('div', { class: 'score' }, h('div', { class: `num ${report.overall_score >= 75 ? 'ok' : report.overall_score >= 50 ? 'warn' : 'bad'}`, text: String(Math.round(report.overall_score)) }), h('div', {}, h('h2', { text: 'Advert Health' }), h('p', { class: 'muted', style: 'margin:0', text: `out of 100 · ${report.country} wording checks` }))),
+    h('ul', { class: 'reqs' }, checks.map((c) => {
+      const st = CHECK_STATUS[c.status];
+      return h('li', { title: c.suggestion || '' }, h('span', { text: c.label }), h('span', { class: `band ${st.tone}`, text: `${st.symbol} ${st.label}` }));
+    })),
+    tips.length ? h('h2', { style: 'margin-top:12px', text: 'Biggest improvements' }) : null,
+    tips.length ? h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, h('strong', { text: t.label }), t.suggestion ? ` - ${t.suggestion}` : ''))) : null,
+    h('p', { class: 'muted', style: 'margin-top:8px', text: 'Warnings are things to review, not legal findings.' }),
+    h('button', { class: 'link', type: 'button', text: 'Open Advert Health in ATS Engine', onclick: () => open(to.advertHealth(jobId)) }),
+  );
+}
+
+function analysisPanel(a, jobId) {
+  const list = (title, items) => (items && items.length ? [h('h2', { style: 'margin-top:10px', text: title }), h('div', { class: 'chips' }, items.map((x) => h('span', { class: 'chip', text: x })))] : []);
+  const facts = [
+    a.years_experience_required ? `${a.years_experience_required}+ years' experience` : null,
+    a.seniority ? `${a.seniority.charAt(0).toUpperCase()}${a.seniority.slice(1)} level` : null,
+    a.location, a.job_type, a.hours, a.salary,
+  ].filter(Boolean);
+  const nothing = !(a.must_have?.length || a.nice_to_have?.length || a.skills?.length);
+  return h(
+    'div',
+    { class: 'card' },
+    h('h2', { text: 'Job Analysis' }),
+    facts.length ? h('p', { class: 'muted', text: facts.join(' · ') }) : null,
+    ...list('Essential', a.must_have),
+    ...list('Desirable', a.nice_to_have),
+    ...list('Skills mentioned', (a.skills || []).filter((s) => !(a.must_have || []).includes(s) && !(a.nice_to_have || []).includes(s))),
+    nothing ? h('p', { class: 'muted', text: "ATS Engine couldn't pick out requirements from this advert. Add them to the vacancy in ATS Engine to match candidates against them." }) : null,
+    h('button', { class: 'link', type: 'button', style: 'margin-top:8px', text: 'Open full analysis in ATS Engine', onclick: () => open(to.vacancy(jobId)) }),
   );
 }
 

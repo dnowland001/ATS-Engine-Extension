@@ -4,6 +4,7 @@ export const links = (appBase) => ({
   advertHealth: (id) => `${appBase}/tools?tab=ad&posting=${encodeURIComponent(id)}`,
   gaps: () => `${appBase}/recruiter/gaps`,
   candidates: () => `${appBase}/recruiter/candidates`,
+  candidate: (id) => `${appBase}/recruiter/candidates/${encodeURIComponent(id)}`,
   settings: () => `${appBase}/settings`,
   // Job seeker screens.
   jobAnalysis: (id) => `${appBase}/jobs?open=${encodeURIComponent(id)}`,

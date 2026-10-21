@@ -86,6 +86,9 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     createVacancy: (fields, { createNew = false } = {}) =>
       request('/extension/recruiter/jobs', { method: 'POST', body: { ...fields, ...(createNew ? { create_new: true } : {}) } }),
     fillVacancy: (id, fields) => request(`/extension/recruiter/jobs/${id}/fill`, { method: 'POST', body: fields }),
+    advertHealth: (id) => request(`/extension/recruiter/jobs/${id}/advert-health`, { method: 'POST', body: {} }),
+    jobAnalysis: (id) => request(`/extension/recruiter/jobs/${id}/analysis`),
+    matchDatabase: (id) => request(`/extension/recruiter/jobs/${id}/match-database`, { method: 'POST', body: {} }),
     // Job seeker extension.
     checkMatch: (fields) => request('/extension/seeker/jobs', { method: 'POST', body: fields }),
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),

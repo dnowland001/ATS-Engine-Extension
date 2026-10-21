@@ -164,12 +164,88 @@ test('captures a job, shows what was not found, and creates the vacancy', async 
   expect(created.body.create_new).toBeUndefined();
 
   if (process.env.SHOTS) await popup.screenshot({ path: `${process.env.SHOTS}/done.png` });
-  await popup.getByRole('button', { name: 'Run Advert Health' }).click();
   await popup.getByRole('button', { name: 'Open in ATS Engine' }).click();
-  expect(await popup.evaluate(() => window.__opened)).toEqual([
-    'https://app.ats-engine.com/tools?tab=ad&posting=77',
-    'https://app.ats-engine.com/jobs?open=77',
-  ]);
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/jobs?open=77']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+const MATCH = {
+  scoreable: true, threshold: 70, considered: 3, with_cv: 3, limited: false,
+  counts: { green: 1, yellow: 1, red: 1 },
+  top: [
+    { id: 501, name: 'Strong Sam', headline: 'Senior Care Assistant', location: 'Leeds', score: 86, band: 'green', meets_minimum: true },
+    { id: 502, name: 'Close Cara', headline: null, location: 'York', score: 64, band: 'yellow', meets_minimum: false },
+    { id: 503, name: 'Will', headline: 'Developer', location: null, score: 12, band: 'red', meets_minimum: false },
+  ],
+};
+const HEALTH = {
+  country: 'GB', overall_score: 82,
+  categories: {
+    attraction: [{ id: 'salary', label: 'Salary stated', status: 'pass', suggestions: [] }],
+    clarity: [{ id: 'reqs', label: 'Requirement count', status: 'warn', suggestions: ['Cut the essentials to the ones that matter.'] }],
+    risk: [{ id: 'health', label: 'Health questions', status: 'not_applicable', suggestions: [] }],
+  },
+  improvements: [{ label: 'Requirement count', suggestions: ['Cut the essentials to the ones that matter.'] }],
+};
+const ANALYSIS = { id: 77, title: 'Senior Care Assistant', location: 'Leeds', salary: '£12.50 an hour', job_type: 'Permanent', hours: null, seniority: 'senior', years_experience_required: 2, must_have: ['personal care', 'dementia care'], nice_to_have: ['nvq level 3'], skills: ['personal care', 'dementia care', 'medication'] };
+
+test('after saving: Match my database, Advert Health and Job Analysis from ATS Engine', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': [200, ME[1]],
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant', location: 'Leeds' } }],
+    'POST /extension/recruiter/jobs/77/match-database': [200, MATCH],
+    'POST /extension/recruiter/jobs/77/advert-health': [200, HEALTH],
+    'GET /extension/recruiter/jobs/77/analysis': [200, ANALYSIS],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+
+  await popup.getByRole('button', { name: 'Match my database' }).click();
+  await expect(popup.getByRole('heading', { name: '3 candidates matched' })).toBeVisible();
+  await expect(popup.locator('.bandrow.green')).toContainText('1Meet your 70% minimum');
+  await expect(popup.locator('.people li').first()).toContainText('86%');
+  await expect(popup.locator('.people li').first()).toContainText('Strong Sam');
+  await expect(popup.locator('#app')).not.toContainText('null');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 900 }), await popup.screenshot({ path: `${process.env.SHOTS}/match.png`, fullPage: true });
+  await popup.locator('.people li').first().getByRole('button', { name: 'View' }).click();
+
+  await popup.getByRole('button', { name: 'Advert Health' }).click();
+  await expect(popup.getByRole('heading', { name: 'Advert Health' })).toBeVisible();
+  await expect(popup.locator('.num')).toHaveText('82');
+  await expect(popup.locator('.reqs li')).toHaveCount(2); // not-applicable left out
+  await expect(popup.getByText('Warnings are things to review, not legal findings.')).toBeVisible();
+  if (process.env.SHOTS) await popup.screenshot({ path: `${process.env.SHOTS}/health.png`, fullPage: true });
+
+  await popup.getByRole('button', { name: 'Job Analysis' }).click();
+  await expect(popup.getByRole('heading', { name: 'Essential' })).toBeVisible();
+  await expect(popup.locator('.chip', { hasText: 'dementia care' })).toHaveCount(1);
+  await expect(popup.getByText("2+ years' experience · Senior level · Leeds · Permanent · £12.50 an hour")).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Skills mentioned' })).toBeVisible();
+  await expect(popup.locator('.chip', { hasText: 'medication' })).toHaveCount(1);
+
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/recruiter/candidates/501']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('an error from one of them shows in place and the rest still work', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': [200, ME[1]],
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant' } }],
+    'POST /extension/recruiter/jobs/77/advert-health': [422, { message: 'That is only 12 words.' }],
+    'POST /extension/recruiter/jobs/77/match-database': [200, { scoreable: false, threshold: 70, considered: 0, with_cv: 4, counts: {}, top: [] }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+  await popup.getByRole('button', { name: 'Advert Health' }).click();
+  await expect(popup.getByText('That is only 12 words.')).toBeVisible();
+  await popup.getByRole('button', { name: 'Match my database' }).click();
+  await expect(popup.getByRole('heading', { name: 'Nothing to match on yet' })).toBeVisible();
   await Promise.all([job.close(), popup.close()]);
 });
 
