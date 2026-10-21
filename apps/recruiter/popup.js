@@ -42,7 +42,9 @@ function open(url) {
 
 // ---- screens ---------------------------------------------------------------
 function connectScreen(message) {
-  who.hidden = true;
+  // Before sign-in the header says which login this is (Dennis, 21 Oct 2026).
+  who.replaceChildren(h('strong', { class: 'login-label', text: 'Recruiter Login' }));
+  who.hidden = false;
   foot.hidden = true;
   show(
     message ? notice('warn', message) : null,

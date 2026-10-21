@@ -127,6 +127,7 @@ test('not connected: offers Connect, which opens the ATS Engine connect page', a
   const popup = await newPopup();
   await expect(popup.getByRole('button', { name: 'Connect to ATS Engine' })).toBeVisible();
   await expect(popup.getByRole('button', { name: 'Disconnect' })).toBeHidden();
+  await expect(popup.locator('#who')).toHaveText('Recruiter Login');
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 420 }), await popup.screenshot({ path: `${process.env.SHOTS}/connect.png` });
   await popup.getByRole('button', { name: 'Connect to ATS Engine' }).click();
   expect(await popup.evaluate(() => window.__opened)).toEqual([`https://app.ats-engine.com/extension/connect?ext=${extId}`]);

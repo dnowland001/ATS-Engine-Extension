@@ -108,3 +108,7 @@ footer { padding: 0 14px 12px; display: flex; justify-content: space-between; fo
 /* Which extension this is, at a glance: green stripe for recruiters, blue for job seekers (matches the icons). */
 body.seeker header.bar { border-bottom-color: var(--primary); }
 .for { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+/* "Recruiter Login" / "Seeker Login" in the header before sign-in, in the extension's own colour. */
+header.bar .who .login-label { font-size: 14px; color: var(--brand-green); }
+body.seeker header.bar .who .login-label { color: var(--primary); }

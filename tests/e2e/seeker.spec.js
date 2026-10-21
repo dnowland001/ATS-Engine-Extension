@@ -47,6 +47,7 @@ test('not connected: the seeker pitch and Connect', async () => {
   await x.mockApi({});
   const popup = await x.popup();
   await expect(popup.getByRole('heading', { name: 'Stop applying blindly' })).toBeVisible();
+  await expect(popup.locator('#who')).toHaveText('Seeker Login');
   await popup.getByRole('button', { name: 'Connect to ATS Engine' }).click();
   expect(await popup.evaluate(() => window.__opened)).toEqual([`https://app.ats-engine.com/extension/connect?ext=${SEEKER_ID}`]);
   await popup.close();
