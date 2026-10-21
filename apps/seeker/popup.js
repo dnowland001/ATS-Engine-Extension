@@ -1,5 +1,5 @@
 /*
- * ATS Engine for Job Seekers - the popup (Phase 1, 21 Oct 2026).
+ * ATS Engine - Seekers - the popup (Phase 1, 21 Oct 2026).
  *
  *   Connect -> Check this job -> review -> Check my match
  *           -> your match, requirements, next step
@@ -59,7 +59,7 @@ function connectScreen(message) {
       h('p', { class: 'muted', text: 'See a job? Check it with ATS Engine. See how well your CV matches, what is missing, and what to do before you apply.' }),
       h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: () => open(connectUrl(CONFIG.appBase, chrome.runtime.id)) }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
-      h('p', { class: 'for', text: 'For job seeker accounts. Recruiting? Use ATS Engine for Recruiters instead.' }),
+      h('p', { class: 'for', text: 'For job seeker accounts. Recruiting? Use ATS Engine - Recruiters instead.' }),
     ),
   );
 }
@@ -285,7 +285,7 @@ async function start() {
   try {
     const me = await api.me();
     if (me.role && me.role !== 'seeker') {
-      return connectScreen('You are signed in with a recruiter account. This is the job seeker extension - use ATS Engine for Recruiters instead, and you can remove this one.');
+      return connectScreen('You are signed in with a recruiter account. This is the job seeker extension - use ATS Engine - Recruiters instead, and you can remove this one.');
     }
     cvCount = typeof me.cv_count === 'number' ? me.cv_count : null;
     myCv = me.my_cv || null;

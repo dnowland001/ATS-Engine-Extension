@@ -177,7 +177,7 @@ test('a recruiter account is pointed to the recruiter extension', async () => {
   await x.connectAs(USER, 'recruiter');
   await x.mockApi({ 'GET /extension/me': [200, { user: USER, role: 'recruiter', cv_count: null }] });
   const popup = await x.popup();
-  await expect(popup.getByText(/use ATS Engine for Recruiters instead/)).toBeVisible();
+  await expect(popup.getByText(/use ATS Engine - Recruiters instead/)).toBeVisible();
   await popup.close();
 });
 

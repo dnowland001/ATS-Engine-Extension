@@ -4,8 +4,8 @@ Thin browser clients over the ATS Engine API. Chrome and Microsoft Edge (Manifes
 
 | App | Folder | Status |
 |---|---|---|
-| ATS Engine for Recruiters | `apps/recruiter` | Phase 1 – capture a job advert into ATS Engine |
-| ATS Engine for Job Seekers | `apps/seeker` | Phase 1 – check a job against your CV: match, requirements, next step, I've applied |
+| ATS Engine - Recruiters | `apps/recruiter` | Phase 1 – capture a job advert into ATS Engine |
+| ATS Engine - Seekers | `apps/seeker` | Phase 1 – check a job against your CV: match, requirements, next step, I've applied |
 
 ## How it fits together
 

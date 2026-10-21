@@ -312,7 +312,7 @@ test('a job seeker account is pointed to the job seeker extension', async () => 
   await connectAs({ name: 'Amy', organisation: 'Amy' });
   await mockApi({ 'GET /extension/me': [200, { user: { name: 'Amy' }, role: 'seeker', cv_count: 1 }] });
   const popup = await newPopup();
-  await expect(popup.getByText(/use ATS Engine for Job Seekers instead/)).toBeVisible();
+  await expect(popup.getByText(/use ATS Engine - Seekers instead/)).toBeVisible();
   await expect(popup.getByRole('button', { name: 'Capture job' })).toHaveCount(0);
   await popup.close();
 });

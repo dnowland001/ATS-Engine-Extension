@@ -1,5 +1,5 @@
 /*
- * ATS Engine for Recruiters - the popup (Phase 1, 21 Oct 2026).
+ * ATS Engine - Recruiters - the popup (Phase 1, 21 Oct 2026).
  *
  *   Connect  ->  Capture job  ->  review and edit  ->  possible duplicates
  *            ->  Create vacancy / Update existing / Create anyway
@@ -58,7 +58,7 @@ function connectScreen(message) {
         onclick: () => open(connectUrl(CONFIG.appBase, chrome.runtime.id)),
       }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
-      h('p', { class: 'for', text: 'For recruiter accounts. Looking for a job? Use ATS Engine for Job Seekers instead.' }),
+      h('p', { class: 'for', text: 'For recruiter accounts. Looking for a job? Use ATS Engine - Seekers instead.' }),
     ),
   );
 }
@@ -302,7 +302,7 @@ async function start() {
   try {
     const me = await api.me();
     if (me.role && me.role !== 'recruiter') {
-      return connectScreen('You are signed in with a job seeker account. This is the recruiter extension - use ATS Engine for Job Seekers instead, and you can remove this one.');
+      return connectScreen('You are signed in with a job seeker account. This is the recruiter extension - use ATS Engine - Seekers instead, and you can remove this one.');
     }
     showWho({ ...connection, user: me.user });
   } catch (err) {
