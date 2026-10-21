@@ -64,5 +64,6 @@ describe('links', () => {
     const to = links('https://app.ats-engine.com');
     expect(to.vacancy(42)).toBe('https://app.ats-engine.com/jobs?open=42');
     expect(to.advertHealth(42)).toBe('https://app.ats-engine.com/tools?tab=ad&posting=42');
+    expect(to.advertHealth(42, 'GB')).toBe('https://app.ats-engine.com/tools?tab=ad&posting=42&country=GB');
   });
 });

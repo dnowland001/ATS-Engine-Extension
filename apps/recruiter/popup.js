@@ -265,7 +265,7 @@ function advertPanel(report, jobId) {
     tips.length ? h('h2', { style: 'margin-top:12px', text: 'Biggest improvements' }) : null,
     tips.length ? h('ul', { class: 'tips' }, tips.map((t) => h('li', {}, h('strong', { text: t.label }), t.suggestion ? ` - ${t.suggestion}` : ''))) : null,
     h('p', { class: 'muted', style: 'margin-top:8px', text: 'Warnings are things to review, not legal findings.' }),
-    h('button', { class: 'link', type: 'button', text: 'Open Advert Health in ATS Engine', onclick: () => open(to.advertHealth(jobId)) }),
+    h('button', { class: 'link', type: 'button', text: 'Open Advert Health in ATS Engine', onclick: () => open(to.advertHealth(jobId, report.country)) }),
   );
 }
 

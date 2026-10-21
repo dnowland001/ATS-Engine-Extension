@@ -219,6 +219,7 @@ test('after saving: Match my database, Advert Health and Job Analysis from ATS E
   await expect(popup.locator('.reqs li')).toHaveCount(2); // not-applicable left out
   await expect(popup.getByText('Warnings are things to review, not legal findings.')).toBeVisible();
   if (process.env.SHOTS) await popup.screenshot({ path: `${process.env.SHOTS}/health.png`, fullPage: true });
+  await popup.getByRole('button', { name: 'Open Advert Health in ATS Engine' }).click();
 
   await popup.getByRole('button', { name: 'Job Analysis' }).click();
   await expect(popup.getByRole('heading', { name: 'Essential' })).toBeVisible();
@@ -227,7 +228,10 @@ test('after saving: Match my database, Advert Health and Job Analysis from ATS E
   await expect(popup.getByRole('heading', { name: 'Skills mentioned' })).toBeVisible();
   await expect(popup.locator('.chip', { hasText: 'medication' })).toHaveCount(1);
 
-  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/recruiter/candidates/501']);
+  expect(await popup.evaluate(() => window.__opened)).toEqual([
+    'https://app.ats-engine.com/recruiter/candidates/501',
+    'https://app.ats-engine.com/tools?tab=ad&posting=77&country=GB',
+  ]);
   await Promise.all([job.close(), popup.close()]);
 });
 
