@@ -68,6 +68,17 @@ describe('build', () => {
     expect(sum(b)).toBe(createHash('md5').update(readFileSync(new URL('../../assets/seeker-icon-128.png', import.meta.url))).digest('hex'));
   });
 
+  it('the store build leaves out the key, and nothing else', () => {
+    const a = mkdtempSync(join(tmpdir(), 'ext-'));
+    const b = mkdtempSync(join(tmpdir(), 'ext-'));
+    const { manifest: download } = build({ app: 'seeker', out: a });
+    const { manifest: store } = build({ app: 'seeker', out: b, store: true });
+    expect(download.key).toBeTruthy();
+    expect(store.key).toBeUndefined();
+    const { key, ...rest } = download;
+    expect(store).toEqual(rest);
+  });
+
   it('marks a local build in its name', () => {
     const out = mkdtempSync(join(tmpdir(), 'ext-'));
     const { manifest } = build({ out, env: 'local' });

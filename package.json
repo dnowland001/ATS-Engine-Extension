@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "build:local": "node scripts/build.mjs --env=local",
     "zip": "node scripts/build.mjs --zip",
+    "store": "node scripts/build.mjs --store --zip",
     "test": "vitest run",
     "test:e2e": "node scripts/build.mjs && playwright test"
   },

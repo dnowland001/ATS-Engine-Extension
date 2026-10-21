@@ -3,7 +3,8 @@
  *
  *   node scripts/build.mjs                    # both extensions, production
  *   node scripts/build.mjs --env=local        # both, local dev servers
- *   node scripts/build.mjs --app=seeker --zip # one, plus a store zip
+ *   node scripts/build.mjs --app=seeker --zip # one, plus a zip for the download page
+ *   node scripts/build.mjs --store --zip      # both, for the Chrome Web Store / Edge Add-ons (no "key")
  *
  * The shared core is copied in beside each app as ./core, with a
  * generated core/config.js holding the ATS Engine addresses, and the
@@ -28,7 +29,7 @@ export const ENVS = {
   local: { apiBase: 'http://localhost:8000/api/v1', appBase: 'http://localhost:5173' },
 };
 
-export function build({ app = 'recruiter', env = 'production', out } = {}) {
+export function build({ app = 'recruiter', env = 'production', out, store = false } = {}) {
   const cfg = ENVS[env];
   if (!cfg) throw new Error(`Unknown env "${env}" - use ${Object.keys(ENVS).join(' or ')}.`);
   const src = join(root, 'apps', app);
@@ -59,6 +60,10 @@ export function build({ app = 'recruiter', env = 'production', out } = {}) {
     .replaceAll('__APP_ORIGIN__', new URL(cfg.appBase).origin);
   const parsed = JSON.parse(manifest);
   if (env !== 'production') parsed.name += ` (${env})`;
+  // The Chrome Web Store and Edge Add-ons give each extension its own ID and
+  // refuse an upload that carries a "key". The store build leaves it out; the
+  // download build keeps it, so its ID stays fixed.
+  if (store) delete parsed.key;
   writeFileSync(join(dest, 'manifest.json'), JSON.stringify(parsed, null, 2) + '\n');
 
   return { dest, manifest: parsed };
@@ -68,11 +73,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const which = arg('app', 'all');
   const env = arg('env', 'production');
   const apps = which === 'all' ? ['recruiter', 'seeker'] : [which];
+  const store = process.argv.includes('--store');
   for (const app of apps) {
-    const { dest, manifest } = build({ app, env });
+    const { dest, manifest } = build({ app, env, store, out: store ? join(root, 'dist', 'store', app) : undefined });
     console.log(`Built ${manifest.name} ${manifest.version} -> ${dest}`);
     if (process.argv.includes('--zip')) {
-      const zip = join(root, 'dist', `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}.zip`);
+      const zip = join(root, 'dist', store ? 'store' : '', `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}${store ? '-store' : ''}.zip`);
       rmSync(zip, { force: true });
       execFileSync('zip', ['-qr', zip, '.'], { cwd: dest });
       console.log(`Zipped -> ${zip}`);
