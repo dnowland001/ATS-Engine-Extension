@@ -6,6 +6,7 @@ import { build } from '../../scripts/build.mjs';
 
 /** Fixed by the manifest key. ATS Engine's EXTENSION_ALLOWED_ORIGINS lists chrome-extension://<this>. */
 const RECRUITER_ID = 'fmgfdjfhhjdkciahjdlgiefgelffglml';
+const SEEKER_ID = 'fbpbkfikiogmljdnojhnhgfobinecgbm';
 
 describe('build', () => {
   it('asks for the least the extension needs', () => {
@@ -37,6 +38,23 @@ describe('build', () => {
     const hex = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32);
     const id = [...hex].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
     expect(id).toBe(RECRUITER_ID);
+  });
+
+  it('the job seeker extension has its own fixed ID and the same small permissions', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'ext-'));
+    const { manifest } = build({ app: 'seeker', out });
+    expect(manifest.name).toBe('ATS Engine for Job Seekers');
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
+    expect(manifest.content_scripts).toBeUndefined();
+    const { createHash } = await import('node:crypto');
+    const hex = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32);
+    expect([...hex].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('')).toBe(SEEKER_ID);
+    expect(existsSync(join(out, 'core', 'match.js'))).toBe(true);
+  });
+
+  it('never writes page data into the seeker popup as HTML', () => {
+    const popup = readFileSync(new URL('../../apps/seeker/popup.js', import.meta.url), 'utf8');
+    expect(popup).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
   });
 
   it('marks a local build in its name', () => {

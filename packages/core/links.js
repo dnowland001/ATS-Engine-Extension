@@ -5,4 +5,8 @@ export const links = (appBase) => ({
   gaps: () => `${appBase}/recruiter/gaps`,
   candidates: () => `${appBase}/recruiter/candidates`,
   settings: () => `${appBase}/settings`,
+  // Job seeker screens.
+  jobAnalysis: (id) => `${appBase}/jobs?open=${encodeURIComponent(id)}`,
+  applications: () => `${appBase}/applications`,
+  cvLibrary: () => `${appBase}/cv-library`,
 });

@@ -16,6 +16,8 @@ import { createApi } from './core/api.js';
 import { getConnection, clearConnection, connectUrl } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
 import { VACANCY_FIELDS, DUPLICATE_REASONS, cleanFields, missingRequired } from './core/fields.js';
+import { h, notice, fill } from './core/dom.js';
+import { reviewForm } from './core/review-form.js';
 import { links } from './core/links.js';
 
 const app = document.getElementById('app');
@@ -29,33 +31,12 @@ const api = createApi({
   onUnauthorised: () => clearConnection(),
 });
 
-// ---- tiny DOM helper: text only, never HTML --------------------------------
-function h(tag, props = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'text') el.textContent = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children.flat()) {
-    if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return el;
-}
-
 function show(...nodes) {
-  app.replaceChildren(...nodes.flat().filter(Boolean));
+  fill(app, ...nodes);
 }
 
 function open(url) {
   chrome.tabs.create({ url });
-}
-
-function notice(kind, text) {
-  return h('div', { class: `notice ${kind}`, role: kind === 'bad' ? 'alert' : undefined, text });
 }
 
 // ---- screens ---------------------------------------------------------------
@@ -134,23 +115,9 @@ function reviewScreen(res, page) {
   if (!res.is_job_page && page.selection && !values.description) {
     values.description = page.selection;
   }
-  const inputs = {};
-
-  const fieldNodes = VACANCY_FIELDS.map((f) => {
-    const id = `f-${f.key}`;
-    const control = f.multiline
-      ? h('textarea', { id, placeholder: 'Not found on the page - add it if you know it' })
-      : h('input', { id, type: 'text', placeholder: 'Not found on the page' });
-    control.value = values[f.key] || '';
-    inputs[f.key] = control;
-    return h('div', {}, h('label', { for: id }, f.label, f.required ? h('span', { class: 'req', text: ' *' }) : null), control);
-  });
-
-  const read = () => {
-    const v = { source_url: values.source_url };
-    for (const [k, el] of Object.entries(inputs)) v[k] = el.value;
-    return v;
-  };
+  const form = reviewForm(values);
+  const fieldNodes = form.nodes;
+  const read = form.read;
 
   const status = h('div');
   const submit = async (action, existingId) => {

@@ -5,7 +5,7 @@ Thin browser clients over the ATS Engine API. Chrome and Microsoft Edge (Manifes
 | App | Folder | Status |
 |---|---|---|
 | ATS Engine for Recruiters | `apps/recruiter` | Phase 1 – capture a job advert into ATS Engine |
-| ATS Engine for Job Seekers | `apps/seeker` | Next (SysMon plan 11.7) – reuses everything in `packages/core` |
+| ATS Engine for Job Seekers | `apps/seeker` | Phase 1 – check a job against your CV: match, requirements, next step, I've applied |
 
 ## How it fits together
 
@@ -28,18 +28,27 @@ Thin browser clients over the ATS Engine API. Chrome and Microsoft Edge (Manifes
 
 ```
 npm install
-npm run build              # production  -> dist/recruiter
+npm run build              # production  -> dist/recruiter and dist/seeker
 npm run build:local        # localhost:8000 API, localhost:5173 app
-node scripts/build.mjs --zip   # also dist/ats-engine-recruiter-<version>.zip for the stores
+npm run zip                # also a store zip of each in dist/
 ```
 
 ## Load it in Chrome or Edge
 
 1. `npm run build`
 2. Chrome: `chrome://extensions` · Edge: `edge://extensions`
-3. Turn on **Developer mode**, click **Load unpacked**, choose `dist/recruiter`.
-4. The ID is always **`fmgfdjfhhjdkciahjdlgiefgelffglml`** (fixed by `key` in the manifest), in Chrome and Edge alike. ATS Engine accepts it because the backend `.env` has
-   `EXTENSION_ALLOWED_ORIGINS=chrome-extension://fmgfdjfhhjdkciahjdlgiefgelffglml` (comma-separated if more are added – e.g. the Chrome Web Store and Edge Add-ons IDs once published).
+3. Turn on **Developer mode**, click **Load unpacked**, choose `dist/recruiter` (or `dist/seeker`).
+4. The IDs are fixed by `key` in each manifest, the same in Chrome and Edge:
+   - Recruiters: **`fmgfdjfhhjdkciahjdlgiefgelffglml`**
+   - Job Seekers: **`fbpbkfikiogmljdnojhnhgfobinecgbm`**
+
+   ATS Engine accepts them because the backend `.env` lists both:
+   `EXTENSION_ALLOWED_ORIGINS=chrome-extension://fmgfdjfhhjdkciahjdlgiefgelffglml,chrome-extension://fbpbkfikiogmljdnojhnhgfobinecgbm`
+   (add the Chrome Web Store and Edge Add-ons IDs once published).
+
+### Job seeker flow
+
+Check this job → review the captured fields → **Check my match**. That is ATS Engine's own Add a job (Job Analysis): the job is saved to the candidate's account, analysed, scored against their CVs and put in their Application Tracker as Waiting / Long shot. The popup shows the score, the band against their own minimum, each requirement's evidence (Evidenced / Practised / Named only / Not evidenced), and a next step worded only from ATS Engine's result. **I've applied** moves the tracker row to Applied.
 
 ## Tests
 

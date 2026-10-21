@@ -62,3 +62,22 @@ footer { padding: 0 14px 12px; display: flex; justify-content: space-between; fo
 
 /* The hidden attribute always wins over display rules above. */
 [hidden] { display: none !important; }
+
+/* Job seeker: the match result. */
+.score { display: flex; align-items: center; gap: 14px; }
+.score .num { flex: none; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; font: 700 22px var(--font); border: 6px solid var(--line); color: var(--brand-navy); }
+.score .num.ok { border-color: var(--brand-green); }
+.score .num.warn { border-color: #e0a100; }
+.score .num.bad { border-color: var(--bad); }
+.score .num.none { font-size: 13px; color: var(--muted); }
+.score h1 { margin-bottom: 2px; }
+.counts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+.reqs { list-style: none; margin: 8px 0 0; padding: 0; }
+.reqs li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.reqs li:first-child { border-top: 0; }
+.reqs .band { flex: none; font-size: 11.5px; font-weight: 700; }
+.reqs .band.ok { color: var(--ok); }
+.reqs .band.warn { color: var(--warn); }
+.reqs .band.bad { color: var(--bad); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.next { border-left: 4px solid var(--primary); padding: 8px 10px; background: #eef3fd; border-radius: 6px; font-size: 13px; margin: 10px 0 12px; }

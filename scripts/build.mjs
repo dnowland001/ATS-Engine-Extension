@@ -1,9 +1,9 @@
 /*
  * Builds an extension into dist/<app> (21 Oct 2026).
  *
- *   node scripts/build.mjs                    # recruiter, production
- *   node scripts/build.mjs --env=local        # recruiter, local dev servers
- *   node scripts/build.mjs --app=recruiter --zip
+ *   node scripts/build.mjs                    # both extensions, production
+ *   node scripts/build.mjs --env=local        # both, local dev servers
+ *   node scripts/build.mjs --app=seeker --zip # one, plus a store zip
  *
  * The shared core is copied in beside each app as ./core, with a
  * generated core/config.js holding the ATS Engine addresses, and the
@@ -60,14 +60,17 @@ export function build({ app = 'recruiter', env = 'production', out } = {}) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const app = arg('app', 'recruiter');
+  const which = arg('app', 'all');
   const env = arg('env', 'production');
-  const { dest, manifest } = build({ app, env });
-  console.log(`Built ${manifest.name} ${manifest.version} -> ${dest}`);
-  if (process.argv.includes('--zip')) {
-    const zip = join(root, 'dist', `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}.zip`);
-    rmSync(zip, { force: true });
-    execFileSync('zip', ['-qr', zip, '.'], { cwd: dest });
-    console.log(`Zipped -> ${zip}`);
+  const apps = which === 'all' ? ['recruiter', 'seeker'] : [which];
+  for (const app of apps) {
+    const { dest, manifest } = build({ app, env });
+    console.log(`Built ${manifest.name} ${manifest.version} -> ${dest}`);
+    if (process.argv.includes('--zip')) {
+      const zip = join(root, 'dist', `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}.zip`);
+      rmSync(zip, { force: true });
+      execFileSync('zip', ['-qr', zip, '.'], { cwd: dest });
+      console.log(`Zipped -> ${zip}`);
+    }
   }
 }

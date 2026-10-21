@@ -27,7 +27,7 @@ test.beforeAll(async () => {
   // The real production build, plus permission to read the local test page
   // (in normal use activeTab grants that when the recruiter clicks).
   const out = mkdtempSync(join(tmpdir(), 'ext-e2e-'));
-  build({ out });
+  build({ app: 'recruiter', out });
   const m = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
   m.host_permissions.push('http://127.0.0.1/*');
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(m));
@@ -41,6 +41,10 @@ test.beforeAll(async () => {
   });
   sw = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
   extId = new URL(sw.url()).host;
+  // A freshly started worker can be evaluated before chrome.* is bound.
+  for (let i = 0; i < 50 && !(await sw.evaluate(() => Boolean(globalThis.chrome?.storage?.local))); i++) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
   expect(extId).toBe('fmgfdjfhhjdkciahjdlgiefgelffglml'); // fixed by the manifest key
 });
 
