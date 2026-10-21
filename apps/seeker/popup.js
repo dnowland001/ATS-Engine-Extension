@@ -130,6 +130,7 @@ function reviewScreen(res, page) {
       resultScreen(saved?.data || saved);
     } catch (err) {
       if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402) return planScreen(err.message);
       status.replaceChildren(notice('bad', err.message));
     }
   };
@@ -252,6 +253,7 @@ async function loadTracker(card, jobId) {
               render(moved, n === 'applied' ? `Marked as applied (${moved.applied_on}).` : `Moved to ${statusLabel(moved.status)}.`);
             } catch (err) {
               if (err.status === 401) return connectScreen(err.message);
+              if (err.status === 402) return planScreen(err.message);
               render(err.body?.application || a, null);
               card.append(notice('bad', err.message));
             }
@@ -265,6 +267,7 @@ async function loadTracker(card, jobId) {
     render(await api.seekerApplication(jobId));
   } catch (err) {
     if (err.status === 401) return connectScreen(err.message);
+    if (err.status === 402) return planScreen(err.message);
     card.replaceChildren(
       h('h2', { text: 'Application Tracker' }),
       h('p', { class: 'muted', text: err.status === 404 ? 'This job is not in your Application Tracker yet.' : err.message }),
@@ -273,8 +276,23 @@ async function loadTracker(card, jobId) {
   }
 }
 
+/* Free accounts: the extension is part of the paid plans and the trial. */
+function planScreen(message) {
+  show(
+    h(
+      'div',
+      { class: 'card' },
+      h('h1', { text: 'Part of the paid plans' }),
+      h('p', { text: message || 'The ATS Engine browser extension comes with Job Seeker and Job Seeker Pro, and with the 14-day free trial.' }),
+      h('button', { class: 'btn', type: 'button', text: 'See plans in ATS Engine', onclick: () => open(to.subscription()) }),
+    ),
+  );
+}
+
 function handleError(err) {
+  if (err.status === 402) return planScreen(err.message);
   if (err.status === 401) return connectScreen(err.message);
+  if (err.status === 402) return planScreen(err.message);
   homeScreen(err.message);
 }
 
@@ -295,6 +313,7 @@ async function start() {
     homeScreen();
   } catch (err) {
     if (err.status === 401) connectScreen(err.message);
+    else if (err.status === 402) planScreen(err.message);
   }
 }
 

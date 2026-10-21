@@ -141,6 +141,7 @@ function reviewScreen(res, page) {
       doneScreen(saved?.data || saved);
     } catch (err) {
       if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402) return planScreen(err.message);
       status.replaceChildren(notice('bad', err.message));
     }
   };
@@ -203,6 +204,7 @@ function doneScreen(job) {
       panel.replaceChildren(render(await call()));
     } catch (err) {
       if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402) return planScreen(err.message);
       panel.replaceChildren(notice('bad', err.message));
     }
   };
@@ -290,8 +292,23 @@ function analysisPanel(a, jobId) {
   );
 }
 
+/* Free accounts: the extension is part of the paid plans and the trial. */
+function planScreen(message) {
+  show(
+    h(
+      'div',
+      { class: 'card' },
+      h('h1', { text: 'Part of the paid plans' }),
+      h('p', { text: message || 'The ATS Engine browser extension comes with Job Seeker and Job Seeker Pro, and with the 14-day free trial.' }),
+      h('button', { class: 'btn', type: 'button', text: 'See plans in ATS Engine', onclick: () => open(to.subscription()) }),
+    ),
+  );
+}
+
 function handleError(err) {
+  if (err.status === 402) return planScreen(err.message);
   if (err.status === 401) return connectScreen(err.message);
+  if (err.status === 402) return planScreen(err.message);
   getConnection().then((c) => homeScreen(c, err.message));
 }
 
@@ -309,6 +326,7 @@ async function start() {
     showWho({ ...connection, user: me.user });
   } catch (err) {
     if (err.status === 401) connectScreen(err.message);
+    else if (err.status === 402) planScreen(err.message);
   }
 }
 

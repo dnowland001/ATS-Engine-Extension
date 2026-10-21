@@ -196,3 +196,14 @@ test('page text is shown as text, never run', async () => {
   expect(await popup.evaluate(() => window.__pwned)).toBeUndefined();
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('a Free account is shown the plans, not the tools', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({ 'GET /extension/me': [402, { error: 'extension_needs_plan', message: 'The ATS Engine browser extension comes with Job Seeker and Job Seeker Pro, and with the 14-day free trial. Upgrade in ATS Engine to use it.' }] });
+  const popup = await x.popup();
+  await expect(popup.getByRole('heading', { name: 'Part of the paid plans' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Check this job' })).toHaveCount(0);
+  await popup.getByRole('button', { name: 'See plans in ATS Engine' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/subscription']);
+  await popup.close();
+});

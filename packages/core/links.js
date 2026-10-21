@@ -7,6 +7,7 @@ export const links = (appBase) => ({
   candidates: () => `${appBase}/recruiter/candidates`,
   candidate: (id) => `${appBase}/recruiter/candidates/${encodeURIComponent(id)}`,
   settings: () => `${appBase}/settings`,
+  subscription: () => `${appBase}/subscription`,
   // Job seeker screens.
   jobAnalysis: (id) => `${appBase}/jobs?open=${encodeURIComponent(id)}`,
   applications: () => `${appBase}/applications`,
