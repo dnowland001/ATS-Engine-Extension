@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ATS Engine for Recruiters",
   "short_name": "ATS Engine",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "See a vacancy? Send it straight to ATS Engine. Capture, check and add job adverts from any site to your ATS Engine desk.",
   "action": {
     "default_title": "ATS Engine - capture this job",

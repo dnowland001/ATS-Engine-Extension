@@ -57,6 +57,17 @@ describe('build', () => {
     expect(popup).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
   });
 
+  it('gives each extension its own icon', async () => {
+    const a = mkdtempSync(join(tmpdir(), 'ext-'));
+    const b = mkdtempSync(join(tmpdir(), 'ext-'));
+    build({ app: 'recruiter', out: a });
+    build({ app: 'seeker', out: b });
+    const { createHash } = await import('node:crypto');
+    const sum = (d) => createHash('md5').update(readFileSync(join(d, 'icons', 'icon-128.png'))).digest('hex');
+    expect(sum(a)).toBe(createHash('md5').update(readFileSync(new URL('../../assets/recruiter-icon-128.png', import.meta.url))).digest('hex'));
+    expect(sum(b)).toBe(createHash('md5').update(readFileSync(new URL('../../assets/seeker-icon-128.png', import.meta.url))).digest('hex'));
+  });
+
   it('marks a local build in its name', () => {
     const out = mkdtempSync(join(tmpdir(), 'ext-'));
     const { manifest } = build({ out, env: 'local' });

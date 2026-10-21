@@ -41,7 +41,12 @@ export function build({ app = 'recruiter', env = 'production', out } = {}) {
   cpSync(src, dest, { recursive: true, filter: (p) => !p.endsWith('manifest.template.json') });
   cpSync(join(root, 'packages', 'core'), join(dest, 'core'), { recursive: true });
   mkdirSync(join(dest, 'icons'), { recursive: true });
-  for (const s of [16, 32, 48, 128]) cpSync(join(root, 'assets', `icon-${s}.png`), join(dest, 'icons', `icon-${s}.png`));
+  // Each extension has its own icon - green for recruiters, blue for job
+  // seekers - so the two are told apart at a glance in the toolbar.
+  for (const s of [16, 32, 48, 128]) {
+    const own = join(root, 'assets', `${app}-icon-${s}.png`);
+    cpSync(existsSync(own) ? own : join(root, 'assets', `icon-${s}.png`), join(dest, 'icons', `icon-${s}.png`));
+  }
   cpSync(join(root, 'assets', 'logo.png'), join(dest, 'logo.png'));
 
   writeFileSync(

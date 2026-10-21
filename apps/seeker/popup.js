@@ -57,6 +57,7 @@ function connectScreen(message) {
       h('p', { class: 'muted', text: 'See a job? Check it with ATS Engine. See how well your CV matches, what is missing, and what to do before you apply.' }),
       h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: () => open(connectUrl(CONFIG.appBase, chrome.runtime.id)) }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
+      h('p', { class: 'for', text: 'For job seeker accounts. Recruiting? Use ATS Engine for Recruiters instead.' }),
     ),
   );
 }
@@ -231,7 +232,7 @@ async function start() {
   try {
     const me = await api.me();
     if (me.role && me.role !== 'seeker') {
-      return connectScreen('This is the job seeker extension. Your account is a recruiter account - use ATS Engine for Recruiters instead.');
+      return connectScreen('You are signed in with a recruiter account. This is the job seeker extension - use ATS Engine for Recruiters instead, and you can remove this one.');
     }
     cvCount = typeof me.cv_count === 'number' ? me.cv_count : null;
     showWho({ ...connection, user: me.user });

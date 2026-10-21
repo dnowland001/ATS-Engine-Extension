@@ -104,3 +104,7 @@ footer { padding: 0 14px 12px; display: flex; justify-content: space-between; fo
 .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #eef3fd; color: var(--brand-navy); }
 .tips { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .tips li { margin-bottom: 4px; }
+
+/* Which extension this is, at a glance: green stripe for recruiters, blue for job seekers (matches the icons). */
+body.seeker header.bar { border-bottom-color: var(--primary); }
+.for { font-size: 12px; color: var(--muted); margin-top: 10px; }
