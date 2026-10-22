@@ -34,3 +34,24 @@ export function cleanFields(values) {
 export function missingRequired(values) {
   return VACANCY_FIELDS.filter((f) => f.required && !(typeof values[f.key] === 'string' && values[f.key].trim())).map((f) => f.label);
 }
+
+/* A candidate read from another site (Professional, E2, 22 Oct 2026). */
+export const CANDIDATE_FIELDS = [
+  { key: 'full_name', label: 'Name', required: true },
+  { key: 'email', label: 'Email', required: true },
+  { key: 'phone', label: 'Phone' },
+  { key: 'headline', label: 'Current or wanted role' },
+  { key: 'town', label: 'Town' },
+];
+
+export const MATCH_REASONS = { same_email: 'Same email', same_phone: 'Same phone', similar_name: 'Similar name' };
+
+/** The candidate fields to send: trimmed, empty ones left out, never invented. */
+export function cleanCandidate(values) {
+  const out = {};
+  for (const key of [...CANDIDATE_FIELDS.map((f) => f.key), 'profile_text']) {
+    const v = typeof values[key] === 'string' ? values[key].trim() : '';
+    if (v) out[key] = v;
+  }
+  return out;
+}

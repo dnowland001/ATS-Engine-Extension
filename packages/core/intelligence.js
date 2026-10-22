@@ -106,3 +106,28 @@ export function professionalSummary(res) {
     gaps: (res.gaps || []).map((g) => ({ ...g, tone: SEVERITY_TONE[g.severity] || 'muted' })),
   };
 }
+
+/* E2: the candidate context put into words. Nothing worked out here. */
+const APP_STATUS = { applied: 'Applied', interviewing: 'Interviewing', offer: 'Offer', accepted: 'Placed', rejected: 'Not taken forward', withdrawn: 'Withdrawn' };
+
+export function candidateSummary(ctx) {
+  if (!ctx) return null;
+  const known = ctx.known;
+  return {
+    known: known
+      ? {
+          ...known,
+          headline: `${known.name} is already in your Talent Pool`,
+          apps: (known.applications || []).map((a) => ({ ...a, statusLabel: APP_STATUS[a.status] || a.status })),
+          gaps: (known.gaps || []).map((g) => ({ ...g, tone: SEVERITY_TONE[g.severity] || 'muted' })),
+        }
+      : null,
+    // Only the names that might be them: a known person's own row is the card above.
+    maybe: (ctx.possible_matches || []).filter((m) => !known || m.id !== known.id),
+    fits: ctx.best_fit || [],
+    fitTotal: ctx.fit_total ?? (ctx.best_fit || []).length,
+    unreadable: ctx.scoreable === false,
+    fromPage: ctx.scored_from === 'page',
+    steps: professionalSummary({ next_actions: ctx.next_actions }).steps,
+  };
+}

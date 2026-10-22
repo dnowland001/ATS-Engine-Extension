@@ -431,3 +431,89 @@ test('Professional: long lists are shown three at a time with Previous and Next'
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1100 }), await popup.screenshot({ path: `${process.env.SHOTS}/pro-paged.png`, fullPage: true });
   await Promise.all([job.close(), popup.close()]);
 });
+
+// ---- E2: a candidate on another site -----------------------------------------
+const CAND_CAPTURE = { fields: { full_name: 'Priya Shah', email: 'priya.shah@example.com', phone: '07700 900123', headline: null, town: null, profile_text: 'Senior care assistant. Personal care.', source_url: 'http://127.0.0.1/jobs/123', source_site: '127.0.0.1' }, not_found: [], used_selection: false };
+const NEW_CTX = {
+  possible_matches: [], known: null, scoreable: true, threshold: 70, scored_from: 'page', fit_total: 1, scored_against: 2,
+  best_fit: [{ id: 77, title: 'Senior Care Assistant', client: 'Example Care', score: 84, matched: ['personal care'], missing: [], already: false, destination: '/jobs?open=77' }],
+  next_actions: [{ key: 'fit:77', kind: 'opportunity', title: 'Priya Shah for Senior Care Assistant', reason: 'A strong match for this vacancy. Add them to your Talent Pool first to put them forward.', priority: { score: 64, band: 'today', parts: [{ label: 'Strong match, not yet approached', points: 50 }, { label: '84 against a pass mark of 70', points: 14 }] }, action: { label: 'Open vacancy' }, destination: '/jobs?open=77' }],
+};
+
+test('Professional: capture a new candidate, see where they fit, and add them only after confirming', async () => {
+  let added = null;
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/recruiter/candidates/capture': [200, CAND_CAPTURE],
+    'POST /extension/recruiter/candidates/context': [200, NEW_CTX],
+    'POST /extension/recruiter/candidates': (req) => ((added = req.postDataJSON()), [201, { candidate: { id: 900 } }]),
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture candidate' }).click();
+  await expect(popup.locator('#c-full_name')).toHaveValue('Priya Shah');
+  await popup.locator('#c-town').fill('Leeds');
+  await popup.getByRole('button', { name: 'Check against ATS Engine' }).click();
+
+  await expect(popup.locator('.cover.warn')).toContainText('Not in your Talent Pool yet');
+  await expect(popup.getByRole('heading', { name: 'Where they fit (1)' })).toBeVisible();
+  await expect(popup.locator('.pro-list li').first()).toContainText('84%');
+  await expect(popup.locator('.steps li').first()).toContainText('64 pts');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1100 }), await popup.screenshot({ path: `${process.env.SHOTS}/candidate-new.png`, fullPage: true });
+
+  await popup.getByRole('button', { name: 'Add to Talent Pool' }).click();
+  expect(added).toBeNull(); // nothing sent before the confirmation
+  await expect(popup.locator('.confirm')).toContainText('Priya Shah · priya.shah@example.com · 07700 900123 · Leeds');
+  await popup.getByRole('button', { name: 'Yes, add them' }).click();
+  await expect(popup.getByText('Priya Shah is in your Talent Pool.')).toBeVisible();
+  expect(added).toMatchObject({ full_name: 'Priya Shah', email: 'priya.shah@example.com', town: 'Leeds', confirmed: true });
+  await popup.getByRole('button', { name: 'Open their record →' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/recruiter/candidates/900']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Professional: someone already here shows their history, and there is no Add button', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/recruiter/candidates/capture': [200, CAND_CAPTURE],
+    'POST /extension/recruiter/candidates/context': [200, {
+      ...NEW_CTX, scored_from: 'record',
+      possible_matches: [{ id: 5, name: 'Priya Shah', reason: 'same_email', applications: 2, live: 1, destination: '/recruiter/candidates/5' }],
+      known: { id: 5, name: 'Priya Shah', destination: '/recruiter/candidates/5', submissions: 1, opportunities: 0, gaps: [{ id: 3, severity: 'critical', title: 'DBS expired - Priya Shah', why: 'May not be placed.', action_label: 'Open candidate', destination: '/recruiter/candidates/5' }],
+        applications: [{ role: 'Care Assistant', company: 'Acme Care', status: 'interviewing', applied_on: '2026-10-01', destination: '/jobs?open=12' }] },
+    }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture candidate' }).click();
+  await popup.getByRole('button', { name: 'Check against ATS Engine' }).click();
+  await expect(popup.locator('.cover.ok')).toContainText('Priya Shah is already in your Talent Pool');
+  await expect(popup.getByRole('heading', { name: 'Their applications (1)' })).toBeVisible();
+  await expect(popup.locator('.pro-list li', { hasText: 'Acme Care' })).toContainText('Interviewing');
+  await expect(popup.getByRole('heading', { name: 'Their open gaps (1)' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Could be the same person' })).toHaveCount(0);
+  await expect(popup.getByRole('button', { name: 'Add to Talent Pool' })).toHaveCount(0);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Standard: no Capture candidate', async () => {
+  await connectAs();
+  await mockApi({ 'GET /extension/me': ME });
+  const { job, popup } = await openPopup();
+  await expect(popup.getByRole('button', { name: 'Capture job' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Capture candidate' })).toHaveCount(0);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('a refused site (LinkedIn) is explained, not shown as broken', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/recruiter/candidates/capture': [422, { error: 'site_not_allowed', message: "ATS Engine doesn't read candidates from www.linkedin.com: its terms don't allow pages to be read automatically. Add the person from your Talent Pool instead." }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture candidate' }).click();
+  await expect(popup.locator('.notice.bad')).toContainText("doesn't read candidates from www.linkedin.com");
+  await expect(popup.getByRole('button', { name: 'Capture job' })).toBeVisible();
+  await Promise.all([job.close(), popup.close()]);
+});

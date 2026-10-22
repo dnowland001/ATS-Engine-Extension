@@ -91,6 +91,10 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     matchDatabase: (id) => request(`/extension/recruiter/jobs/${id}/match-database`, { method: 'POST', body: {} }),
     // ATS Engine Professional (E1): the vacancy's intelligence.
     vacancyIntelligence: (id) => request(`/extension/recruiter/jobs/${id}/intelligence`),
+    // ATS Engine Professional (E2): a candidate on another site. Nothing is saved until addCandidate.
+    captureCandidate: (page) => request('/extension/recruiter/candidates/capture', { method: 'POST', body: { url: page.url, html: page.html, selection: page.selection } }),
+    candidateContext: (fields) => request('/extension/recruiter/candidates/context', { method: 'POST', body: fields }),
+    addCandidate: (fields) => request('/extension/recruiter/candidates', { method: 'POST', body: { ...fields, confirmed: true } }),
     // Job seeker extension.
     checkMatch: (fields) => request('/extension/seeker/jobs', { method: 'POST', body: fields }),
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),

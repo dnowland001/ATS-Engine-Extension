@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { advertChecks, advertImprovements, matchSummary, bandLabel, professionalSummary } from '../../packages/core/intelligence.js';
+import { advertChecks, advertImprovements, matchSummary, bandLabel, professionalSummary, candidateSummary } from '../../packages/core/intelligence.js';
 
 describe('advert health', () => {
   const report = {
@@ -61,5 +61,18 @@ describe('professional insight (E1)', () => {
   });
   it('says when the vacancy could not be read', () => {
     expect(professionalSummary({ scoreable: false }).unread).toContain("couldn't read");
+  });
+});
+
+describe('candidate context (E2)', () => {
+  it("leaves the known person's own row out of 'could be the same person'", () => {
+    const s = candidateSummary({ known: { id: 5, name: 'Sam', applications: [{ status: 'interviewing' }], gaps: [] }, possible_matches: [{ id: 5, reason: 'same_phone' }, { id: 9, reason: 'similar_name' }] });
+    expect(s.known.headline).toBe('Sam is already in your Talent Pool');
+    expect(s.known.apps[0].statusLabel).toBe('Interviewing');
+    expect(s.maybe.map((m) => m.id)).toEqual([9]);
+  });
+  it('says when it scored from the page and when there was nothing to score', () => {
+    expect(candidateSummary({ scored_from: 'page', best_fit: [] }).fromPage).toBe(true);
+    expect(candidateSummary({ scoreable: false }).unreadable).toBe(true);
   });
 });

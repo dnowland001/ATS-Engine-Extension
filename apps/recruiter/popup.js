@@ -15,11 +15,11 @@ import { CONFIG } from './core/config.js';
 import { createApi } from './core/api.js';
 import { getConnection, clearConnection, connectUrl } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
-import { VACANCY_FIELDS, DUPLICATE_REASONS, cleanFields, missingRequired } from './core/fields.js';
+import { VACANCY_FIELDS, DUPLICATE_REASONS, CANDIDATE_FIELDS, MATCH_REASONS, cleanFields, cleanCandidate, missingRequired } from './core/fields.js';
 import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { links } from './core/links.js';
-import { advertChecks, advertImprovements, matchSummary, professionalSummary, CHECK_STATUS } from './core/intelligence.js';
+import { advertChecks, advertImprovements, matchSummary, professionalSummary, candidateSummary, CHECK_STATUS } from './core/intelligence.js';
 
 const app = document.getElementById('app');
 const who = document.getElementById('who');
@@ -82,7 +82,198 @@ function homeScreen(connection, message) {
       h('p', { class: 'muted', text: 'Reads the advert on the page you are on. Nothing is saved until you have checked it. Tip: highlight the job description first on sites that hide it.' }),
       h('button', { class: 'btn', type: 'button', text: 'Capture job', onclick: capture }),
     ),
+    (proSlot = h('div')),
   );
+  fillProSlot();
+}
+
+// The Professional card arrives once /extension/me has said what the account has.
+let proSlot = null;
+function fillProSlot() {
+  if (!proSlot || !document.contains(proSlot)) return;
+  proSlot.replaceChildren(
+    isPro()
+      ? h(
+          'div',
+          { class: 'card pro-card' },
+          h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Looking at a candidate?' })),
+          h('p', { class: 'muted', text: 'Check whether they are already in ATS Engine, see where they fit your open vacancies, and add them if they are new. Nothing is saved until you confirm. Tip: highlight their profile first for the best match. LinkedIn is not read.' }),
+          h('button', { class: 'btn gold', type: 'button', text: 'Capture candidate', onclick: captureCandidate }),
+        )
+      : '',
+  );
+}
+
+// ---- ATS Engine Professional (E2): a candidate on another site ---------------
+async function captureCandidate() {
+  busy('Reading the page…');
+  let page;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !/^https?:/.test(tab.url || '')) throw new Error("Open the candidate's page in this tab first.");
+    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPage });
+    page = result?.result;
+    if (!page?.html) throw new Error('This page could not be read.');
+  } catch (err) {
+    return homeScreen(await getConnection(), err.message || 'This page could not be read.');
+  }
+  busy('ATS Engine is reading the profile…');
+  try {
+    candidateReview(await api.captureCandidate(page));
+  } catch (err) {
+    handleError(err);
+  }
+}
+
+function candidateReview(res) {
+  const values = { ...(res.fields || {}) };
+  const inputs = {};
+  const nodes = CANDIDATE_FIELDS.map((f) => {
+    const id = `c-${f.key}`;
+    const control = h('input', { id, type: f.key === 'email' ? 'email' : 'text', placeholder: 'Not found on the page' });
+    control.value = values[f.key] || '';
+    inputs[f.key] = control;
+    return h('div', {}, h('label', { for: id }, f.label, f.required ? h('span', { class: 'req', text: ' *' }) : null), control);
+  });
+  const read = () => {
+    const v = { profile_text: values.profile_text || '' };
+    for (const [k, el] of Object.entries(inputs)) v[k] = el.value;
+    return v;
+  };
+  const status = h('div');
+  const chars = (values.profile_text || '').length;
+
+  show(
+    h(
+      'div',
+      { class: 'card' },
+      h('h1', { text: 'Check this candidate' }),
+      h('p', { class: 'muted', text: 'Check the details below. Nothing is saved - this only looks them up in ATS Engine.' }),
+      nodes,
+      h('p', { class: 'source', style: 'margin-top:10px', text: `${res.used_selection ? 'Your highlighted text' : 'The page text'} (${chars} characters) is matched against your vacancies · from ${values.source_site || ''}` }),
+      status,
+      h('button', {
+        class: 'btn gold', type: 'button', text: 'Check against ATS Engine',
+        onclick: async () => {
+          status.replaceChildren(notice('ok', 'Looking them up…'));
+          try {
+            const fields = cleanCandidate(read());
+            contextScreen(await api.candidateContext(fields), fields);
+          } catch (err) {
+            if (err.status === 401) return connectScreen(err.message);
+            if (err.status === 402 && err.code === 'plan_feature_unavailable') return show(proOffer(err.message));
+            status.replaceChildren(notice('bad', err.message));
+          }
+        },
+      }),
+      h('button', { class: 'btn secondary', type: 'button', text: 'Cancel', onclick: start }),
+    ),
+  );
+}
+
+function contextScreen(ctx, fields) {
+  const s = candidateSummary(ctx);
+  const go = (path) => () => open(to.route(path));
+  const section = (title, ...nodes) => [h('h2', { style: 'margin-top:12px', text: title }), ...nodes];
+  const addArea = h('div');
+
+  const addFlow = () => {
+    const missing = CANDIDATE_FIELDS.filter((f) => f.required && !fields[f.key]).map((f) => f.label);
+    if (missing.length) {
+      addArea.replaceChildren(notice('bad', `Add their ${missing.join(' and ').toLowerCase()} first - go back and fill ${missing.length === 1 ? 'it' : 'them'} in.`));
+      return;
+    }
+    addArea.replaceChildren(
+      h('div', { class: 'confirm' },
+        h('strong', { text: 'Add this person to your Talent Pool?' }),
+        h('span', { text: [fields.full_name, fields.email, fields.phone, fields.town].filter(Boolean).join(' · ') }),
+        s.maybe.length ? h('span', { class: 'muted', text: `Check they are not one of the ${s.maybe.length} similar ${s.maybe.length === 1 ? 'name' : 'names'} above first.` }) : null,
+        h('div', { class: 'tri' },
+          h('button', {
+            class: 'btn green', type: 'button', text: 'Yes, add them',
+            onclick: async () => {
+              addArea.replaceChildren(notice('ok', 'Adding to your Talent Pool…'));
+              try {
+                const res = await api.addCandidate(fields);
+                const id = res?.candidate?.id;
+                addArea.replaceChildren(notice('ok', `${fields.full_name} is in your Talent Pool.`), id ? h('button', { class: 'btn-mini', type: 'button', text: 'Open their record →', onclick: () => open(to.candidate(id)) }) : null);
+              } catch (err) {
+                if (err.status === 401) return connectScreen(err.message);
+                addArea.replaceChildren(notice('bad', err.message));
+              }
+            },
+          }),
+          h('button', { class: 'btn secondary', type: 'button', text: 'Not now', onclick: () => addArea.replaceChildren(addButton()) }),
+        )),
+    );
+  };
+  const addButton = () => h('button', { class: 'btn green', type: 'button', text: 'Add to Talent Pool', onclick: addFlow });
+
+  show(
+    h(
+      'div',
+      { class: 'card pro-card' },
+      h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: fields.full_name || 'This candidate' })),
+
+      s.known
+        ? h('div', { class: 'cover ok' }, h('strong', { text: s.known.headline }),
+            h('span', { text: `${s.known.apps.length} application${s.known.apps.length === 1 ? '' : 's'} · ${s.known.submissions} sent to clients · ${s.known.opportunities} open ${s.known.opportunities === 1 ? 'opportunity' : 'opportunities'}` }),
+            h('button', { class: 'btn-mini', type: 'button', text: 'Open their record →', onclick: go(s.known.destination) }))
+        : h('div', { class: 'cover warn' }, h('strong', { text: s.maybe.length ? 'Possibly already in ATS Engine' : 'Not in your Talent Pool yet' }),
+            h('span', { text: s.maybe.length ? 'A similar name is on file - check below before adding.' : 'Nobody with this email, phone or a similar name.' })),
+
+      ...(s.maybe.length
+        ? section('Could be the same person', paged(s.maybe, PER_PAGE, (page) => h('ul', { class: 'pro-list' }, page.map((m) => h('li', {},
+            h('div', { class: 'pro-row' }, h('span', { class: 'pill warn', text: MATCH_REASONS[m.reason] || m.reason }), h('strong', { text: m.name || 'Unnamed' })),
+            h('span', { class: 'muted', text: [m.headline, m.town, `${m.applications} applications`, m.live ? `${m.live} live` : null, m.recruiter ? `with ${m.recruiter}` : null].filter(Boolean).join(' · ') }),
+            h('button', { class: 'btn-mini', type: 'button', text: 'View →', onclick: go(m.destination) }),
+          ))), 'Possible matches'))
+        : []),
+
+      ...(s.known && s.known.apps.length
+        ? section(`Their applications (${s.known.apps.length})`, paged(s.known.apps, PER_PAGE, (page) => h('ul', { class: 'pro-list' }, page.map((a) => h('li', {},
+            h('div', { class: 'pro-row' }, h('span', { class: 'pill muted', text: a.statusLabel }), h('strong', { text: a.role || 'Role' })),
+            h('span', { class: 'muted', text: [a.company, a.applied_on].filter(Boolean).join(' · ') }),
+            h('button', { class: 'btn-mini', type: 'button', text: 'Open →', onclick: go(a.destination) }),
+          ))), 'Applications'))
+        : []),
+
+      ...(s.known && s.known.gaps.length
+        ? section(`Their open gaps (${s.known.gaps.length})`, paged(s.known.gaps, PER_PAGE, (page) => h('ul', { class: 'pro-list gaplist' }, page.map((g) => h('li', {},
+            h('div', { class: 'pro-row' }, h('span', { class: `pill ${g.tone}`, text: g.severity }), h('strong', { text: g.title })),
+            g.why ? h('span', { class: 'muted', text: g.why }) : null,
+            g.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${g.action_label || 'Open'} →`, onclick: go(g.destination) }) : null,
+          ))), 'Their gaps'))
+        : []),
+
+      ...section(`Where they fit (${s.fitTotal})`,
+        s.unreadable
+          ? h('p', { class: 'muted', text: 'Nothing to match yet - highlight their profile or experience on the page and capture again.' })
+          : s.fits.length
+            ? paged(s.fits, PER_PAGE, (page) => h('ul', { class: 'pro-list' }, page.map((f) => h('li', {},
+                h('div', { class: 'pro-row' }, h('span', { class: 'sc green', text: `${f.score}%` }), h('strong', { text: f.title })),
+                h('span', { class: 'muted', text: [f.client, f.already ? 'already in this one' : null].filter(Boolean).join(' · ') }),
+                f.matched?.length ? h('div', { class: 'chips' }, f.matched.map((x) => h('span', { class: 'chip', text: x }))) : null,
+                h('button', { class: 'btn-mini', type: 'button', text: 'Open vacancy →', onclick: go(f.destination) }),
+              ))), 'Where they fit')
+            : h('p', { class: 'muted', text: 'None of your open vacancies reaches your minimum match score for them.' }),
+        s.fromPage && s.fits.length ? h('p', { class: 'muted', text: 'Scored from the page text, with the same fit as Match my database.' }) : null,
+      ),
+
+      ...(s.steps.length
+        ? section(`Next steps (${s.steps.length})`, paged(s.steps, PER_PAGE, (page) => h('ol', { class: 'steps' }, page.map((a) => h('li', {},
+            h('div', { class: 'step-top' }, h('span', { class: `pill ${a.band}`, text: a.bandLabel }), h('span', { class: 'pts', title: a.parts.join(' · '), text: `${a.points} pts` })),
+            h('strong', { text: a.title }),
+            a.reason ? h('span', { class: 'muted', text: a.reason }) : null,
+            a.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${a.action} →`, onclick: go(a.destination) }) : null,
+          ))), 'Next steps'))
+        : []),
+
+      s.known ? null : h('div', { style: 'margin-top:12px' }, addArea),
+    ),
+    h('div', { class: 'card' }, h('button', { class: 'btn secondary', type: 'button', text: 'Check another candidate', onclick: captureCandidate }), h('button', { class: 'btn secondary', type: 'button', text: 'Back', onclick: start })),
+  );
+  if (!s.known) addArea.replaceChildren(addButton());
 }
 
 function showWho(connection) {
@@ -398,6 +589,7 @@ async function start() {
     }
     caps = Array.isArray(me.capabilities) ? me.capabilities : [];
     showWho({ ...connection, user: me.user });
+    fillProSlot();
   } catch (err) {
     if (err.status === 401) connectScreen(err.message);
     else if (err.status === 402) planScreen(err.message);
