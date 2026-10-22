@@ -83,3 +83,12 @@ describe('job insight (E3)', () => {
     expect([s.history, s.step.title]).toEqual(['h', 't']);
   });
 });
+
+describe('full fit', () => {
+  it('leads with the tailored CV once there is one, and says when there is not', async () => {
+    const { fullFit } = await import('../../packages/core/match.js');
+    expect(fullFit({ score: 78, minimum_score_threshold: 70, tailored: { score: 86, document_id: 9 } })).toMatchObject({ full: true, score: 86, base: 78, delta: 8, documentId: 9, tone: 'ok' });
+    expect(fullFit({ score: 78 })).toMatchObject({ full: false, score: 78 });
+    expect(fullFit({ scoreable: false, score: 0 })).toBeNull();
+  });
+});

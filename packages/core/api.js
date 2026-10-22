@@ -27,7 +27,7 @@ const MESSAGES = {
 };
 
 export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchImpl = (...a) => fetch(...a), timeoutMs = 20000 }) {
-  async function request(path, { method = 'GET', body, token, retry = method === 'GET' } = {}) {
+  async function request(path, { method = 'GET', body, token, retry = method === 'GET', asBlob = false } = {}) {
     const auth = token ?? (await getToken());
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -46,11 +46,18 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
       });
     } catch {
       if (retry) {
-        return request(path, { method, body, token, retry: false });
+        return request(path, { method, body, token, retry: false, asBlob });
       }
       throw new ApiError(MESSAGES[0]);
     } finally {
       clearTimeout(timer);
+    }
+
+    // A file (22 Oct 2026: the tailored CV): the bytes and the name ATS Engine gave it.
+    if (asBlob && res.ok) {
+      const cd = res.headers?.get?.('Content-Disposition') || '';
+      const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+      return { blob: await res.blob(), filename: m ? decodeURIComponent(m[1]) : '' };
     }
 
     let data = null;
@@ -100,6 +107,11 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),
     seekerApplication: (jobId) => request(`/extension/seeker/jobs/${jobId}/application`),
     setStatus: (jobId, status) => request(`/extension/seeker/jobs/${jobId}/status`, { method: 'POST', body: { status } }),
+    // The full fit (22 Oct 2026): a job already in ATS Engine, and the tailored CV made and downloaded here.
+    seekerJob: (jobId) => request(`/extension/seeker/jobs/${jobId}`),
+    generateCv: (candidateId, jobId) => request('/extension/seeker/documents/generate', { method: 'POST', body: { candidate_id: candidateId, job_posting_id: jobId, type: 'tailored_cv' } }),
+    document: (id) => request(`/extension/seeker/documents/${id}`),
+    downloadDocument: (id) => request(`/extension/seeker/documents/${id}/download`, { asBlob: true }),
     // Job Insight (E3): Job Seeker Pro and its trial.
     jobInsight: (jobId) => request(`/extension/seeker/jobs/${jobId}/insight`),
   };

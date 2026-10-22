@@ -140,3 +140,29 @@ export const INSIGHT_PITCH = [
   'How your applications to roles like this have gone',
   'The one thing to do next: apply, tailor, or move on',
 ];
+
+/*
+ * THE FULL FIT (22 Oct 2026). Dennis: the extension must show the fit the
+ * app shows. Once a tailored CV has been made for the job, the app leads
+ * with ITS score - that is the document they would send - so this does
+ * too, with the best CV's score beside it. Before that, the score is the
+ * best CV's, and it says so.
+ */
+export const DOC_DONE = ['evidence_checked', 'evidence_flagged', 'evidence_not_assessed', 'failed'];
+
+export function fullFit(fit) {
+  if (!fit || fit.scoreable === false || fit.score == null) return null;
+  const base = Math.round(Number(fit.score));
+  const t = fit.tailored;
+  if (t && typeof t.score === 'number') {
+    const score = Math.round(t.score);
+    const min = fit.minimum_score_threshold;
+    return {
+      full: true, score, base, delta: score - base, documentId: t.document_id || null,
+      tone: min == null ? 'ok' : score >= min ? 'ok' : 'warn',
+      label: 'Your tailored CV',
+      note: `Your tailored CV scores ${score}% - your best CV on its own scored ${base}%${score - base > 0 ? ` (+${score - base})` : ''}.`,
+    };
+  }
+  return { full: false, score: base, base, delta: 0, documentId: null, label: 'Your best CV', note: 'This is your best CV\'s fit before it is tailored to this job. Your full fit comes from a tailored CV made for it.' };
+}

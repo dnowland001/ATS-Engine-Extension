@@ -280,3 +280,70 @@ test('Job Seeker: Job Insight is sold, with the upgrade one click away', async (
   expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/subscription']);
   await Promise.all([job.close(), popup.close()]);
 });
+
+// ---- The full fit (22 Oct 2026) ------------------------------------------------
+const DOC_ME = [200, { user: USER, role: 'seeker', cv_count: 2, my_cv: null, candidate_id: 7, documents: true }];
+const TAILORED = { ...FIT, tailored: { document_id: 900, score: 86, source_score: 78, improved_or_equal: true } };
+
+test('a job already in their ATS Engine shows its fit straight away, without checking it again', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 55, title: 'Delivery Manager', company: 'Acme Bank', reason: 'same_link' }] }],
+    'GET /extension/seeker/jobs/55': [200, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.getByText('This job is already in your ATS Engine - here is your fit.')).toBeVisible();
+  await expect(popup.getByRole('img', { name: '78% fit' })).toBeVisible();
+  await expect(popup.locator('.fullfit.is-first')).toContainText('Before the full analysis');
+  expect(x.calls.some((c) => c.method === 'POST' && c.path === '/extension/seeker/jobs')).toBe(false);
+  await expect(popup.getByRole('button', { name: 'Check it again from this page' })).toBeVisible();
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('with a tailored CV the ring is the full fit, with the best CV beside it, and Download', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 55, title: 'Delivery Manager' }] }],
+    'GET /extension/seeker/jobs/55': [200, JOB(TAILORED)],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'GET /extension/seeker/documents/900/download': [200, { file: 'docx' }],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.getByRole('img', { name: '86% fit, tailored CV' })).toBeVisible();
+  await expect(popup.locator('.fit-word')).toHaveText('full fit');
+  await expect(popup.locator('.fullfit.is-full')).toContainText('Your tailored CV scores 86% - your best CV on its own scored 78% (+8).');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 640 }), await popup.evaluate(() => window.scrollTo(0, 0)), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-fullfit.png` });
+  await popup.getByRole('button', { name: 'Download tailored CV' }).click();
+  await expect.poll(() => x.calls.some((c) => c.path === '/extension/seeker/documents/900/download')).toBe(true);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('before the full analysis: make the tailored CV here, then the full fit and Download appear', async () => {
+  let made = false;
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'POST /extension/seeker/documents/generate': (req) => ((made = req.postDataJSON()), [202, { data: { id: 900, status: 'pending' } }]),
+    'GET /extension/seeker/documents/900': [200, { data: { id: 900, status: 'evidence_checked' } }],
+    'GET /extension/seeker/jobs/55': [200, JOB(TAILORED)],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await expect(popup.locator('.fullfit.is-first')).toContainText("This is your best CV's fit before it is tailored to this job.");
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 640 }), await popup.evaluate(() => window.scrollTo(0, 0)), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-beforefull.png` });
+  await popup.getByRole('button', { name: 'Make my tailored CV - full analysis' }).click();
+  await expect(popup.getByText('Making your tailored CV for this job')).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Download tailored CV' })).toBeVisible({ timeout: 10000 });
+  await expect(popup.getByRole('img', { name: '86% fit, tailored CV' })).toBeVisible();
+  expect(made).toEqual({ candidate_id: 7, job_posting_id: 55, type: 'tailored_cv' });
+  await Promise.all([job.close(), popup.close()]);
+});

@@ -19,7 +19,7 @@ import { cleanFields, missingRequired } from './core/fields.js';
 import { links } from './core/links.js';
 import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
-import { summarise, insightSummary, INSIGHT_PITCH, EVIDENCE } from './core/match.js';
+import { summarise, insightSummary, fullFit, INSIGHT_PITCH, EVIDENCE, DOC_DONE } from './core/match.js';
 import { STATUS, MOVE, statusLabel } from './core/tracker.js';
 
 const app = document.getElementById('app');
@@ -29,6 +29,8 @@ const to = links(CONFIG.appBase);
 let cvCount = null;
 let myCv = null; // the CV Creator's one active CV, if built
 let jobInsight = false; // Job Seeker Pro and its trial (E3) - the server checks again
+let candidateId = null; // their own, for making a tailored CV
+let canTailorCv = false; // their plan makes tailored CVs
 
 const api = createApi({
   baseUrl: CONFIG.apiBase,
@@ -106,11 +108,26 @@ async function capture() {
   }
 
   busy('ATS Engine is reading the job…');
+  let res;
   try {
-    reviewScreen(await api.capture(page), page);
+    res = await api.capture(page);
   } catch (err) {
-    handleError(err);
+    return handleError(err);
   }
+  // Already in their ATS Engine (22 Oct 2026): show its fit straight away
+  // - the same card the app shows - rather than asking to check it again.
+  const before = (res.existing || [])[0];
+  if (before?.id) {
+    busy('You have this job already - loading your fit…');
+    try {
+      const job = await api.seekerJob(before.id);
+      return resultScreen(job?.data || job, { known: true, recheck: () => reviewScreen(res, page) });
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      // Not readable any more - fall through to checking it as new.
+    }
+  }
+  reviewScreen(res, page);
 }
 
 function reviewScreen(res, page) {
@@ -153,8 +170,9 @@ function reviewScreen(res, page) {
   );
 }
 
-function resultScreen(job) {
+function resultScreen(job, opts = {}) {
   const fit = job?.candidate_fit || null;
+  const full = fullFit(fit);
   const s = summarise(fit, { cvCount, application: job?.application });
   const id = job?.id;
 
@@ -177,6 +195,7 @@ function resultScreen(job) {
   if (id && jobInsight) loadInsight(insight, id);
 
   show(
+    opts.known ? notice('ok', 'This job is already in your ATS Engine - here is your fit.') : null,
     h(
       'div',
       { class: 'card' },
@@ -187,10 +206,10 @@ function resultScreen(job) {
         // the number in the middle and the word "fit" under it.
         s.score === null
           ? h('div', { class: 'num none', text: 'No score' })
-          : h('div', { class: `num fit-ring ${s.tone}`, style: `--p:${Math.max(0, Math.min(100, s.score))}`, role: 'img', 'aria-label': `${s.score}% fit` },
-              h('span', { class: 'fit-num', text: `${s.score}%` }), h('span', { class: 'fit-word', text: 'fit' })),
+          : fitRing(full?.full ? full.score : s.score, full?.full ? full.tone : s.tone, full?.full),
         h('div', {}, h('h1', { text: s.headline }), h('p', { class: 'muted', style: 'margin:0', text: `${job?.title || ''}${job?.company ? ` · ${job.company}` : ''}` })),
       ),
+      full ? fullFitBlock(job, full) : null,
       s.requirements.length
         ? h(
             'div',
@@ -214,9 +233,80 @@ function resultScreen(job) {
       s.next.kind === 'upload' ? h('button', { class: 'btn', type: 'button', text: 'Upload your CV', onclick: () => open(to.cvLibrary()) }) : null,
       id && (tailorFirst || canTailor) ? tailorBlock(id, tailorFirst) : null,
       id ? h('button', { class: `btn${tailorFirst ? ' secondary' : ''}`, type: 'button', text: 'View full analysis', onclick: () => open(to.jobAnalysis(id)) }) : null,
+      opts.recheck ? h('button', { class: 'btn secondary', type: 'button', text: 'Check it again from this page', onclick: opts.recheck }) : null,
       h('button', { class: 'btn secondary', type: 'button', text: 'Check another job', onclick: start }),
     ),
   );
+}
+
+/* The fit, big: a ring filled to the score. "tailored" marks the full fit. */
+function fitRing(score, tone, tailored) {
+  return h('div', { class: `num fit-ring ${tone}`, style: `--p:${Math.max(0, Math.min(100, score))}`, role: 'img', 'aria-label': `${score}% fit${tailored ? ', tailored CV' : ''}` },
+    h('span', { class: 'fit-num', text: `${score}%` }), h('span', { class: 'fit-word', text: tailored ? 'full fit' : 'fit' }));
+}
+
+/*
+ * The full fit (22 Oct 2026): with a tailored CV, its score and a Download
+ * button; before one, a clear "this is before the full analysis" and a
+ * button that makes the tailored CV here - the app's own generation - and
+ * then shows the full fit, ready to download.
+ */
+function fullFitBlock(job, full) {
+  const box = h('div', { class: `fullfit ${full.full ? 'is-full' : 'is-first'}` });
+  const download = async (docId, btn) => {
+    btn.disabled = true;
+    try {
+      const { blob, filename } = await api.downloadDocument(docId);
+      const url = URL.createObjectURL(blob);
+      const a = h('a', { href: url, download: filename || `${job.title || 'Tailored'}-CV.docx`.replace(/\s+/g, '_') });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      box.append(notice('bad', err.message));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  if (full.full) {
+    const btn = h('button', { class: 'btn green', type: 'button', text: 'Download tailored CV', onclick: () => download(full.documentId, btn) });
+    fill(box, h('p', { class: 'fullfit-note', text: full.note }), full.documentId ? btn : null);
+    return box;
+  }
+
+  const make = async () => {
+    fill(box, h('p', { class: 'fullfit-note', text: 'Making your tailored CV for this job - this takes about a minute. You can leave this open.' }), h('div', { class: 'bar' }, h('span')));
+    try {
+      const res = await api.generateCv(candidateId, job.id);
+      const docId = (res?.data || res)?.id;
+      for (let i = 0; i < 100; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const d = await api.document(docId);
+        const status = (d?.data || d)?.status;
+        if (DOC_DONE.includes(status)) {
+          if (status === 'failed') throw new Error('ATS Engine could not make the tailored CV this time. Try again, or make it from the job in ATS Engine.');
+          const fresh = await api.seekerJob(job.id);
+          return resultScreen(fresh?.data || fresh);
+        }
+      }
+      throw new Error('This is taking longer than usual. Open the job in ATS Engine to see when it is ready.');
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      fill(box, h('p', { class: 'fullfit-note', text: full.note }), notice('bad', err.message), retry());
+    }
+  };
+  const retry = () => h('button', { class: 'btn', type: 'button', text: 'Make my tailored CV - full analysis', onclick: make });
+
+  fill(
+    box,
+    h('strong', { class: 'fullfit-head', text: 'Before the full analysis' }),
+    h('p', { class: 'fullfit-note', text: full.note }),
+    canTailorCv && candidateId ? retry() : h('p', { class: 'muted', text: 'Tailored CVs come with Job Seeker and Job Seeker Pro.' }),
+  );
+  return box;
 }
 
 /*
@@ -374,6 +464,8 @@ async function start() {
     cvCount = typeof me.cv_count === 'number' ? me.cv_count : null;
     myCv = me.my_cv || null;
     jobInsight = me.job_insight === true;
+    candidateId = me.candidate_id || null;
+    canTailorCv = me.documents === true;
     showWho({ ...connection, user: me.user });
     homeScreen();
   } catch (err) {

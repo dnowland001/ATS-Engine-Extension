@@ -160,3 +160,13 @@ body.seeker header.bar .who .login-label { color: var(--primary); }
 .fit-ring .fit-num, .fit-ring .fit-word { position: relative; line-height: 1; }
 .fit-ring .fit-num { font: 800 30px var(--font); letter-spacing: -.02em; color: var(--brand-navy); }
 .fit-ring .fit-word { margin-top: 3px; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+/* The full fit (22 Oct 2026). */
+.fullfit { display: grid; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+.fullfit.is-first { background: #fff6e0; border: 1px solid #f0d78a; color: #5b4300; }
+.fullfit.is-full { background: #e8f6ee; border: 1px solid #a8dcbc; color: #135a32; }
+.fullfit-head { font-size: 13.5px; }
+.fullfit-note { margin: 0; }
+.fullfit .bar { height: 6px; border-radius: 99px; background: #f0e2b8; overflow: hidden; }
+.fullfit .bar span { display: block; height: 100%; width: 40%; background: #e0a526; border-radius: 99px; animation: ffbar 1.4s ease-in-out infinite; }
+@keyframes ffbar { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+.fit-ring .fit-word { white-space: nowrap; }
