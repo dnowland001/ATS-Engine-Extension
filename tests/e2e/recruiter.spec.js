@@ -517,3 +517,36 @@ test('a refused site (LinkedIn) is explained, not shown as broken', async () => 
   await expect(popup.getByRole('button', { name: 'Capture job' })).toBeVisible();
   await Promise.all([job.close(), popup.close()]);
 });
+
+// ---- Opening in ATS Engine (22 Oct 2026) -------------------------------------
+test('View existing is a button that opens Job Postings on that card', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': [200, ME[1]],
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 12, title: 'Senior Care Assistant', company: 'Acme Care', location: 'Leeds', status: 'open', reason: 'same_link' }] }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'View existing →' }).click();
+  await popup.getByRole('button', { name: 'Open the existing one in ATS Engine' }).click();
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 700 }), await popup.screenshot({ path: `${process.env.SHOTS}/duplicate-buttons.png`, fullPage: true });
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/jobs?open=12', 'https://app.ats-engine.com/jobs?open=12']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('not added yet: Open in ATS Engine hands the reviewed fields to the Add a vacancy form, in the fragment', async () => {
+  await connectAs();
+  let saved = false;
+  await mockApi({ 'GET /extension/me': [200, ME[1]], 'POST /extension/capture': [200, CAPTURED], 'POST /extension/recruiter/jobs': () => ((saved = true), [201, { data: { id: 1 } }]) });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByLabel('Salary').fill('£13 an hour');
+  await popup.getByRole('button', { name: 'Open in ATS Engine to finish there' }).click();
+  const [url] = await popup.evaluate(() => window.__opened);
+  expect(url.startsWith('https://app.ats-engine.com/jobs#prefill=')).toBe(true);
+  const b64 = url.split('#prefill=')[1].replace(/-/g, '+').replace(/_/g, '/');
+  const json = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  expect(json).toMatchObject({ title: 'Senior Care Assistant', company: 'Acme Care', salary: '£13 an hour', source_url: 'http://127.0.0.1/jobs/123' });
+  expect(saved).toBe(false); // nothing saved
+  await Promise.all([job.close(), popup.close()]);
+});

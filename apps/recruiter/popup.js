@@ -359,8 +359,10 @@ function reviewScreen(res, page) {
             h(
               'div',
               { class: 'actions' },
-              h('button', { class: 'link', type: 'button', text: 'View existing', onclick: () => open(to.vacancy(e.id)) }),
-              h('button', { class: 'link', type: 'button', text: 'Update this one', onclick: () => submit('fill', e.id) }),
+              // Buttons, not links (Dennis, 22 Oct 2026). View existing opens
+              // Job Postings with this vacancy's card open, on page load.
+              h('button', { class: 'btn-mini', type: 'button', text: 'View existing →', onclick: () => open(to.vacancy(e.id)) }),
+              h('button', { class: 'btn-mini', type: 'button', text: 'Update this one', onclick: () => submit('fill', e.id) }),
             ),
           ),
         ),
@@ -384,6 +386,13 @@ function reviewScreen(res, page) {
       existing.length
         ? h('button', { class: 'btn secondary', type: 'button', text: 'Create a new vacancy anyway', onclick: () => submit('create_new') })
         : h('button', { class: 'btn green', type: 'button', text: 'Create vacancy', onclick: () => submit('create') }),
+      // Open in ATS Engine (22 Oct 2026): Job Postings, on page load, with
+      // the existing card open - or, if it is not there yet, the Add a
+      // vacancy form filled with what is on this screen (nothing saved).
+      h('button', {
+        class: 'btn secondary', type: 'button', text: existing.length ? 'Open the existing one in ATS Engine' : 'Open in ATS Engine to finish there',
+        onclick: () => open(existing.length ? to.vacancy(existing[0].id) : to.newVacancy(cleanFields(read()))),
+      }),
     ),
   );
 }
