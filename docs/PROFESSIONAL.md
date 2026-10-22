@@ -7,8 +7,8 @@ the popup. Nothing here stores a CV, a candidate or a token in a page.
 
 | Extension | Version | Standard (unchanged) | Upgrade |
 |---|---|---|---|
-| ATS Engine - Recruiters | 0.4.0 | Capture job, Match my database, Advert Health, Job Analysis | ATS Engine Professional: **Professional insight** on a vacancy (E1), **Capture candidate** (E2) |
-| ATS Engine - Seekers | 0.3.0 | Check my match, requirements judged, Tailor my CV, tracker | Job Seeker Pro and its trial: **Job Insight** (E3) |
+| ATS Engine - Recruiters | 0.4.1 | Capture job, Match my database, Advert Health, Job Analysis | ATS Engine Professional: **Professional insight** on a vacancy (E1), **Capture candidate** (E2) |
+| ATS Engine - Seekers | 0.3.2 | Check my match, requirements judged, Tailor my CV, tracker | Job Seeker Pro and its trial: **Job Insight** (E3) |
 
 ## Who gets what - always decided by the server
 
@@ -29,6 +29,8 @@ a hidden button is a courtesy, never the lock.
 | `POST recruiter/candidates/capture` | E2. Reads the page or highlighted text: name (main heading), email and phone as written, text to match. Nothing guessed. **LinkedIn refused** (`config/extension.php` `candidate_blocked_hosts`) with 422 `site_not_allowed`. | nothing | 30/min | `extension.candidate_capture` / `_refused` |
 | `POST recruiter/candidates/context` | E2. The reviewed fields against the desk's own Talent Pool only: same email, same phone, similar name - listed, never merged. History for a person found by email or phone. Where they fit across open vacancies (Match my database's scorer; the page text as an in-memory CV for someone new, never stored). Next steps. | nothing | 12/min | `extension.candidate_context` |
 | `POST recruiter/candidates` | E2. Adds them to the Talent Pool - only with `confirmed: true` - through the Talent Pool's own add (`createPlaceholderCandidate`, unchanged). | the candidate | 20/min | `extension.candidate_added` |
+| `GET seeker/jobs/{id}` | 0.3.2. A saved or tracked job of the candidate's own, with its fit, so a job already in the tracker shows its score straight away. | nothing | - | - |
+| `POST seeker/documents/generate`, `GET seeker/documents/{id}`, `GET seeker/documents/{id}/download` | 0.3.2. The full analysis (a tailored CV, plan feature `documents_enabled`), its score once done, and the CV download - the same generate the app uses. | the tailored CV | 10/min | - |
 | `GET seeker/jobs/{id}/insight` | E3. Verdict, strongest/weakest criteria, gaps to fix first with how, skills another CV shows better, similar applications' outcomes, one next step. Only the candidate's own saved or tracked job. | nothing | 20/min | `extension.seeker.insight` |
 
 Reused, not rebuilt: `CandidateCoverageDetector::findingFor`,
@@ -47,6 +49,7 @@ weights, `TalentPool`, `NameSimilarity`, `CandidateFitCalculator`,
 - A 402 from a Professional route shows the Professional offer in place (e.g. just after a downgrade), never an error.
 
 **Job seeker**
+- The fit: a ring with the score. Until the full analysis is done it says the score is before the full analysis and offers **Run the full analysis**; once done it shows the tailored CV's score and **Download CV**. A job already in the Application Tracker shows its fit as soon as the popup opens.
 - After Check my match: Job Seeker Pro and the trial get the **Job Insight** card (verdict, Next step with button, strong / lose marks, Fix these first, You have this, history). Job Seeker gets *Know if this job is worth your evening* - the five things Job Insight does, free in the trial, **Upgrade to Job Seeker Pro** - and the popup never asks for the insight.
 
 ## Downgrade (E4)
@@ -68,4 +71,4 @@ app) and `python ops/job-insight-launch.py show` in the mainsite repo. Steps:
 ## Tests
 
 - Extension: `tests/unit` (`professionalSummary`, `candidateSummary`, `insightSummary`, `pageSlice`) and `tests/e2e` (real Chromium, both extensions, Standard and Professional paths, refusals, paging, confirmation before adding).
-- Backend: `ExtensionVacancyIntelligenceTest`, `ExtensionCandidateContextTest`, `ExtensionSeekerInsightTest`, `ExtensionDowngradeTest`.
+- Backend: `ExtensionVacancyIntelligenceTest`, `ExtensionCandidateContextTest`, `ExtensionSeekerInsightTest`, `ExtensionDowngradeTest`, `ExtensionSeekerFullFitTest`.
