@@ -402,3 +402,32 @@ test('Professional refused by the server (e.g. just downgraded): the offer, not 
   await expect(popup.getByRole('button', { name: 'Capture another job' })).toBeVisible(); // still on the vacancy
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('Professional: long lists are shown three at a time with Previous and Next', async () => {
+  const gaps = Array.from({ length: 7 }, (_, i) => ({ id: 100 + i, severity: 'high', category: 'Expiry', title: `Gap number ${i + 1}`, why: 'Why it matters.', action_label: 'Open', destination: `/recruiter/candidates/${i + 1}` }));
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant' } }],
+    'GET /extension/recruiter/jobs/77/intelligence': [200, { ...INTEL, gaps }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+  await popup.getByRole('button', { name: 'Professional insight' }).click();
+
+  const nav = popup.getByRole('navigation', { name: 'Open gaps pages' });
+  await expect(popup.locator('.gaplist li')).toHaveCount(3);
+  await expect(nav).toContainText('1-3 of 7');
+  await expect(nav.getByRole('button', { name: '‹ Previous' })).toBeDisabled();
+  await nav.getByRole('button', { name: 'Next ›' }).click();
+  await expect(popup.locator('.gaplist li').first()).toContainText('Gap number 4');
+  await nav.getByRole('button', { name: 'Next ›' }).click();
+  await expect(nav).toContainText('7-7 of 7');
+  await expect(nav.getByRole('button', { name: 'Next ›' })).toBeDisabled();
+  // Two next steps fit on one page: no pager for them.
+  await expect(popup.getByRole('navigation', { name: 'Next steps pages' })).toHaveCount(0);
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1100 }), await popup.screenshot({ path: `${process.env.SHOTS}/pro-paged.png`, fullPage: true });
+  await Promise.all([job.close(), popup.close()]);
+});

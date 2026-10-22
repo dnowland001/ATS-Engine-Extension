@@ -16,7 +16,7 @@ import { createApi } from './core/api.js';
 import { getConnection, clearConnection, connectUrl } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
 import { VACANCY_FIELDS, DUPLICATE_REASONS, cleanFields, missingRequired } from './core/fields.js';
-import { h, notice, fill } from './core/dom.js';
+import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { links } from './core/links.js';
 import { advertChecks, advertImprovements, matchSummary, professionalSummary, CHECK_STATUS } from './core/intelligence.js';
@@ -304,6 +304,9 @@ function analysisPanel(a, jobId) {
 }
 
 /* ATS Engine Professional (E1): a vacancy's coverage, gaps, strong matches and next steps. */
+// Each list shows this many at a time, with Previous / Next under it.
+const PER_PAGE = 3;
+
 function proPanel(res, jobId) {
   const s = professionalSummary(res);
   const go = (path) => () => open(to.route(path));
@@ -316,29 +319,29 @@ function proPanel(res, jobId) {
     s.coverage ? h('div', { class: `cover ${s.coverage.tone}` }, h('strong', { text: s.coverage.headline }), s.coverage.detail && s.coverage.tone !== 'ok' ? h('span', { text: s.coverage.detail }) : null) : null,
     ...(s.missing.length ? section('Must-haves nobody in your pool shows', h('div', { class: 'chips' }, s.missing.map((x) => h('span', { class: 'chip warn', text: x }))), s.missingWhy ? h('p', { class: 'muted', text: s.missingWhy }) : null) : []),
     ...(s.steps.length
-      ? section('Next steps', h('ol', { class: 'steps' }, s.steps.map((a) => h('li', {},
+      ? section(`Next steps (${s.steps.length})`, paged(s.steps, PER_PAGE, (page) => h('ol', { class: 'steps' }, page.map((a) => h('li', {},
           h('div', { class: 'step-top' }, h('span', { class: `pill ${a.band}`, text: a.bandLabel }), h('span', { class: 'pts', title: a.parts.join(' · '), text: `${a.points} pts` })),
           h('strong', { text: a.title }),
           a.reason ? h('span', { class: 'muted', text: a.reason }) : null,
           a.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${a.action} →`, onclick: go(a.destination) }) : null,
-        ))))
+        ))), 'Next steps'))
       : []),
     ...(s.matches
       ? section(`Strong matches not yet approached (${s.matches.total})`,
           s.matches.items.length
-            ? h('ul', { class: 'pro-list' }, s.matches.items.map((c) => h('li', {},
+            ? paged(s.matches.items, PER_PAGE, (page) => h('ul', { class: 'pro-list' }, page.map((c) => h('li', {},
                 h('div', { class: 'pro-row' }, h('span', { class: 'sc green', text: `${c.score}%` }), h('strong', { text: c.name || 'Unnamed' })),
                 [c.headline, c.town].filter(Boolean).length ? h('span', { class: 'muted', text: [c.headline, c.town].filter(Boolean).join(' · ') }) : null,
                 h('button', { class: 'btn-mini', type: 'button', text: 'View →', onclick: go(c.destination) }),
-              )))
+              ))), 'Strong matches')
             : h('p', { class: 'muted', text: 'Nobody new: everyone who meets your minimum has already applied or been put forward.' }))
       : []),
     ...(s.gaps.length
-      ? section('Open gaps on this vacancy', h('ul', { class: 'pro-list gaplist' }, s.gaps.map((g) => h('li', {},
+      ? section(`Open gaps on this vacancy (${s.gaps.length})`, paged(s.gaps, PER_PAGE, (page) => h('ul', { class: 'pro-list gaplist' }, page.map((g) => h('li', {},
           h('div', { class: 'pro-row' }, h('span', { class: `pill ${g.tone}`, text: g.severity }), h('strong', { text: g.title })),
           g.why ? h('span', { class: 'muted', text: g.why }) : null,
           g.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${g.action_label || 'Open'} →`, onclick: go(g.destination) }) : null,
-        ))))
+        ))), 'Open gaps'))
       : []),
     h('p', { class: 'muted', style: 'margin-top:8px', text: 'Counted by ATS Engine from your own records, with your desk\'s own minimum and priority points.' }),
     h('button', { class: 'link', type: 'button', text: 'Open the Intelligence Centre', onclick: () => open(to.professional()) }),
