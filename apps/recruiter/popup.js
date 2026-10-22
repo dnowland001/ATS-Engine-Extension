@@ -320,24 +320,24 @@ function proPanel(res, jobId) {
           h('div', { class: 'step-top' }, h('span', { class: `pill ${a.band}`, text: a.bandLabel }), h('span', { class: 'pts', title: a.parts.join(' · '), text: `${a.points} pts` })),
           h('strong', { text: a.title }),
           a.reason ? h('span', { class: 'muted', text: a.reason }) : null,
-          a.destination ? h('button', { class: 'link', type: 'button', text: a.action, onclick: go(a.destination) }) : null,
+          a.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${a.action} →`, onclick: go(a.destination) }) : null,
         ))))
       : []),
     ...(s.matches
       ? section(`Strong matches not yet approached (${s.matches.total})`,
           s.matches.items.length
-            ? h('ul', { class: 'people' }, s.matches.items.map((c) => h('li', {},
-                h('span', { class: 'sc green', text: `${c.score}%` }),
-                h('span', { class: 'who' }, h('strong', { text: c.name || 'Unnamed' }), h('span', { class: 'muted', text: [c.headline, c.town].filter(Boolean).join(' · ') })),
-                h('button', { class: 'link', type: 'button', text: 'View', onclick: go(c.destination) }),
+            ? h('ul', { class: 'pro-list' }, s.matches.items.map((c) => h('li', {},
+                h('div', { class: 'pro-row' }, h('span', { class: 'sc green', text: `${c.score}%` }), h('strong', { text: c.name || 'Unnamed' })),
+                [c.headline, c.town].filter(Boolean).length ? h('span', { class: 'muted', text: [c.headline, c.town].filter(Boolean).join(' · ') }) : null,
+                h('button', { class: 'btn-mini', type: 'button', text: 'View →', onclick: go(c.destination) }),
               )))
             : h('p', { class: 'muted', text: 'Nobody new: everyone who meets your minimum has already applied or been put forward.' }))
       : []),
     ...(s.gaps.length
-      ? section('Open gaps on this vacancy', h('ul', { class: 'gaplist' }, s.gaps.map((g) => h('li', {},
-          h('span', { class: `pill ${g.tone}`, text: g.severity }),
-          h('span', { class: 'who' }, h('strong', { text: g.title }), h('span', { class: 'muted', text: g.why || '' })),
-          g.destination ? h('button', { class: 'link', type: 'button', text: g.action_label || 'Open', onclick: go(g.destination) }) : null,
+      ? section('Open gaps on this vacancy', h('ul', { class: 'pro-list gaplist' }, s.gaps.map((g) => h('li', {},
+          h('div', { class: 'pro-row' }, h('span', { class: `pill ${g.tone}`, text: g.severity }), h('strong', { text: g.title })),
+          g.why ? h('span', { class: 'muted', text: g.why }) : null,
+          g.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${g.action_label || 'Open'} →`, onclick: go(g.destination) }) : null,
         ))))
       : []),
     h('p', { class: 'muted', style: 'margin-top:8px', text: 'Counted by ATS Engine from your own records, with your desk\'s own minimum and priority points.' }),

@@ -361,8 +361,8 @@ test('Professional: Professional insight shows coverage, must-haves, next steps,
   await expect(popup.locator('#app')).not.toContainText('null');
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1100 }), await popup.screenshot({ path: `${process.env.SHOTS}/pro.png`, fullPage: true });
 
-  await popup.locator('.steps li').first().getByRole('button', { name: 'Open candidate' }).click();
-  await popup.locator('.gaplist li').first().getByRole('button', { name: 'Open vacancy' }).click();
+  await popup.locator('.steps li').first().getByRole('button', { name: 'Open candidate →' }).click();
+  await popup.locator('.gaplist li').first().getByRole('button', { name: 'Open vacancy →' }).click();
   expect(await popup.evaluate(() => window.__opened)).toEqual([
     'https://app.ats-engine.com/recruiter/candidates/501',
     'https://app.ats-engine.com/jobs?open=77',

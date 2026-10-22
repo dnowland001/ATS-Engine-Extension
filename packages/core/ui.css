@@ -96,8 +96,8 @@ footer { padding: 0 14px 12px; display: flex; justify-content: space-between; fo
 .people li:first-child { border-top: 0; }
 .people .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .people .who .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.people .sc { flex: none; width: 46px; text-align: center; font-weight: 700; font-size: 13px; padding: 3px 0; border-radius: 6px; }
-.people .sc.green { background: var(--ok-soft); color: var(--ok); }
+.people .sc, .pro-list .sc { flex: none; width: 46px; text-align: center; font-weight: 700; font-size: 13px; padding: 3px 0; border-radius: 6px; }
+.people .sc.green, .pro-list .sc.green { background: var(--ok-soft); color: var(--ok); }
 .people .sc.yellow { background: var(--warn-soft); color: var(--warn); }
 .people .sc.red { background: var(--bad-soft); color: var(--bad); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -133,8 +133,11 @@ body.seeker header.bar .who .login-label { color: var(--primary); }
 .pill.today { background: #fff4dc; color: #6b4a00; }
 .pill.this_week { background: #eef2f8; color: #3b4a63; }
 .pill.muted { background: #eef2f8; color: #3b4a63; }
-.gaplist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
-.gaplist li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; font-size: 13px; }
 .gaplist .pill { text-transform: capitalize; }
-.gaplist .who { display: flex; flex-direction: column; min-width: 0; }
-.steps .link { justify-self: start; padding-left: 0; }
+/* Professional lists (E1): every item's action is a clear button of its own, never squeezed beside the text. */
+.pro-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.pro-list li, .steps li { display: grid; gap: 4px; font-size: 13px; padding: 9px 10px; border: 1px solid #e3e8f0; border-radius: 10px; background: #fafbfd; }
+.steps { padding-left: 0; list-style: none; }
+.pro-row { display: flex; align-items: center; gap: 8px; }
+.btn-mini { justify-self: start; margin-top: 2px; font: inherit; font-size: 12.5px; font-weight: 700; color: #1d4ed8; background: #fff; border: 1.5px solid #1d4ed8; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.btn-mini:hover, .btn-mini:focus-visible { background: #1d4ed8; color: #fff; outline: none; }
