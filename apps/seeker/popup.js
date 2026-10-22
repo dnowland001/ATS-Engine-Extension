@@ -182,8 +182,13 @@ function resultScreen(job) {
       { class: 'card' },
       h(
         'div',
-        { class: 'score' },
-        h('div', { class: `num ${s.score === null ? 'none' : s.tone}`, text: s.score === null ? 'No score' : `${s.score}%` }),
+        { class: 'score score--fit' },
+        // The fit, big (Dennis, 22 Oct 2026): a ring filled to the score,
+        // the number in the middle and the word "fit" under it.
+        s.score === null
+          ? h('div', { class: 'num none', text: 'No score' })
+          : h('div', { class: `num fit-ring ${s.tone}`, style: `--p:${Math.max(0, Math.min(100, s.score))}`, role: 'img', 'aria-label': `${s.score}% fit` },
+              h('span', { class: 'fit-num', text: `${s.score}%` }), h('span', { class: 'fit-word', text: 'fit' })),
         h('div', {}, h('h1', { text: s.headline }), h('p', { class: 'muted', style: 'margin:0', text: `${job?.title || ''}${job?.company ? ` · ${job.company}` : ''}` })),
       ),
       s.requirements.length

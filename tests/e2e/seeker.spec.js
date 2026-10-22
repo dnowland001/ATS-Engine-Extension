@@ -73,7 +73,9 @@ test('check a job: review, match, requirements, next step, tracker, tailor', asy
   await expect(popup.getByLabel('Employer')).toHaveValue('Acme Bank');
   await popup.getByRole('button', { name: 'Check my match' }).click();
 
-  await expect(popup.getByText('78%')).toBeVisible();
+  await expect(popup.getByText('78%', { exact: true })).toBeVisible();
+  await expect(popup.getByRole('img', { name: '78% fit' })).toHaveAttribute('style', '--p:78');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 600 }), await popup.evaluate(() => window.scrollTo(0, 0)), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-fit.png` });
   await expect(popup.getByRole('heading', { name: 'Worth applying' })).toBeVisible();
   await expect(popup.getByText('2 requirements evidenced')).toBeVisible();
   await expect(popup.getByText('2 to strengthen')).toBeVisible();
