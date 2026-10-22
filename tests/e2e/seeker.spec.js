@@ -207,3 +207,74 @@ test('a Free account is shown the plans, not the tools', async () => {
   expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/subscription']);
   await popup.close();
 });
+
+// ---- Job Insight (E3): Job Seeker Pro and its trial -------------------------
+const PRO_ME = [200, { user: USER, role: 'seeker', cv_count: 2, my_cv: { id: 9, version_number: 3, updated_at: '2026-10-20T10:00:00Z' }, job_insight: true }];
+const INSIGHT = {
+  scoreable: true, no_cv: false, score: 78, threshold: 70, meets_minimum: true, potential_score: 86,
+  verdict: 'A good fit: 78% against your 70% minimum. 2 must-haves are not clearly shown yet.',
+  strongest: [{ criterion: 'skills_match', earned: 30, possible: 35, percent: 85.7 }],
+  weakest: [{ criterion: 'industry_alignment', earned: 2, possible: 10, percent: 20 }],
+  gaps: [
+    { skill: 'scrum', band: 'absent', elsewhere: false, fix: 'Nothing on file shows it yet. If you have done it, add it to your CV or as a STAR story.' },
+    { skill: 'financial services', band: 'named', elsewhere: true, fix: 'Another of your CVs shows this better - bring it into the CV you send.' },
+  ],
+  transferable: [{ skill: 'financial services', here: 'named', elsewhere: 'practised' }],
+  history: { similar: 4, interviews: 2, offers: 1, summary: "You've applied for 4 similar roles: 2 reached interview, 1 offer." },
+  next_step: { kind: 'tailor', title: 'Tailor your CV, then apply', reason: 'A tailored CV would take you from 78% to 86%.', action: { label: 'Tailor my CV' }, destination: '/my-cv?tailor=55' },
+};
+
+test('Job Seeker Pro: Job Insight - verdict, next step, strengths, gaps to fix, skills the CV does not show, history', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'GET /extension/seeker/jobs/55/insight': [200, INSIGHT],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+
+  const card = popup.locator('.pro-card');
+  await expect(card.getByRole('heading', { name: 'Job Insight' })).toBeVisible();
+  await expect(card).toContainText('A good fit: 78% against your 70% minimum.');
+  await expect(card.locator('.next-step')).toContainText('Next: Tailor your CV, then apply');
+  await expect(card.getByRole('heading', { name: 'Where you are strong' })).toBeVisible();
+  await expect(card).toContainText('Skills match');
+  await expect(card).toContainText('30 of 35');
+  await expect(card.getByRole('heading', { name: 'Fix these first (2)' })).toBeVisible();
+  await expect(card.locator('.pro-list li').first()).toContainText('Scrum');
+  await expect(card.getByRole('heading', { name: "You have this - this CV doesn't show it" })).toBeVisible();
+  await expect(card.locator('.history')).toHaveText("You've applied for 4 similar roles: 2 reached interview, 1 offer.");
+  await expect(popup.locator('#app')).not.toContainText('null');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1400 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-insight.png`, fullPage: true });
+  if (process.env.SHOTS) await card.screenshot({ path: `${process.env.SHOTS}/seeker-insight-card.png` });
+
+  await card.getByRole('button', { name: 'Tailor my CV →' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/my-cv?tailor=55']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Job Seeker: Job Insight is sold, with the upgrade one click away', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': ME(),
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  const card = popup.locator('.pro-card');
+  await expect(card.getByRole('heading', { name: 'Know if this job is worth your evening' })).toBeVisible();
+  await expect(card).toContainText('free in the 14-day trial');
+  await expect(card.locator('.pro-pitch li')).toHaveCount(5);
+  expect(x.calls.some((c) => c.path.endsWith('/insight'))).toBe(false); // never asked for
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1300 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-teaser.png`, fullPage: true });
+  await card.getByRole('button', { name: 'Upgrade to Job Seeker Pro' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/subscription']);
+  await Promise.all([job.close(), popup.close()]);
+});

@@ -17,9 +17,9 @@ import { getConnection, clearConnection, connectUrl } from './core/connection.js
 import { readPage } from './core/page-reader.js';
 import { cleanFields, missingRequired } from './core/fields.js';
 import { links } from './core/links.js';
-import { h, notice, fill } from './core/dom.js';
+import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
-import { summarise, EVIDENCE } from './core/match.js';
+import { summarise, insightSummary, INSIGHT_PITCH, EVIDENCE } from './core/match.js';
 import { STATUS, MOVE, statusLabel } from './core/tracker.js';
 
 const app = document.getElementById('app');
@@ -28,6 +28,7 @@ const foot = document.getElementById('foot');
 const to = links(CONFIG.appBase);
 let cvCount = null;
 let myCv = null; // the CV Creator's one active CV, if built
+let jobInsight = false; // Job Seeker Pro and its trial (E3) - the server checks again
 
 const api = createApi({
   baseUrl: CONFIG.apiBase,
@@ -172,6 +173,8 @@ function resultScreen(job) {
   const canTailor = fit?.meets_minimum || fit?.tailoring_can_meet_minimum;
   const tracker = id ? h('div', { class: 'card' }, h('p', { class: 'muted', text: 'Checking your Application Tracker…' })) : null;
   if (tracker) loadTracker(tracker, id);
+  const insight = id ? (jobInsight ? h('div', { class: 'card pro-card' }, h('p', { class: 'muted', text: 'Job Insight is reading this job against your CV…' })) : proTeaser()) : null;
+  if (id && jobInsight) loadInsight(insight, id);
 
   show(
     h(
@@ -198,6 +201,7 @@ function resultScreen(job) {
       s.requirements.length > 8 ? h('p', { class: 'muted', style: 'margin-top:6px', text: `and ${s.requirements.length - 8} more in the full analysis.` }) : null,
       s.cv ? h('p', { class: 'muted', style: 'margin-top:10px', text: `Matched against ${s.cv}` }) : null,
     ),
+    insight,
     tracker,
     h(
       'div',
@@ -230,6 +234,61 @@ function tailorBlock(jobId, primary) {
     { style: 'margin-bottom:8px' },
     h('button', { class: `btn${primary ? ' green' : ''}`, type: 'button', text: 'Tailor my CV for this job', onclick: () => open(to.tailorMyCv(jobId)) }),
     h('p', { class: 'for', text: `Opens CV Creator on this job. You check every change; saving makes it your active CV (version ${myCv.version_number + 1}) and keeps the old one in your history.` }),
+  );
+}
+
+/* ---- Job Insight (E3): Job Seeker Pro and its trial ------------------------ */
+const PER_PAGE = 3;
+
+async function loadInsight(card, jobId) {
+  try {
+    renderInsight(card, await api.jobInsight(jobId));
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    if (err.status === 402 && err.code === 'plan_feature_unavailable') return card.replaceWith(proTeaser(err.message));
+    card.replaceChildren(h('h2', { text: 'Job Insight' }), notice('bad', err.message));
+  }
+}
+
+function renderInsight(card, res) {
+  const s = insightSummary(res);
+  const go = (path) => () => open(to.route(path));
+  const section = (title, ...nodes) => [h('h2', { style: 'margin-top:12px', text: title }), ...nodes];
+  const rows = (list, tone) => h('ul', { class: 'reqs' }, list.map((c) => h('li', {}, h('span', { text: c.label }), h('span', { class: `band ${tone}`, text: c.detail }))));
+  fill(
+    card,
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Job Insight' })),
+    s.verdict ? h('p', { style: 'margin-top:8px', text: s.verdict }) : null,
+    s.step
+      ? h('div', { class: 'cover warn next-step' }, h('strong', { text: `Next: ${s.step.title}` }), h('span', { text: s.step.reason }),
+          s.step.destination ? h('button', { class: 'btn-mini', type: 'button', text: `${s.step.action?.label || 'Open'} →`, onclick: go(s.step.destination) }) : null)
+      : null,
+    ...(s.strongest.length ? section('Where you are strong', rows(s.strongest, 'ok')) : []),
+    ...(s.weakest.length ? section('Where you lose marks', rows(s.weakest, 'warn')) : []),
+    ...(s.gaps.length
+      ? section(`Fix these first (${s.gaps.length})`, paged(s.gaps, PER_PAGE, (page) => h('ul', { class: 'pro-list' }, page.map((g) => h('li', {},
+          h('div', { class: 'pro-row' }, h('span', { class: `pill ${g.ev.tone}`, text: g.ev.label }), h('strong', { text: g.skill })),
+          h('span', { class: 'muted', text: g.fix }),
+        ))), 'Gaps to fix'))
+      : []),
+    ...(s.transferable.length
+      ? section("You have this - this CV doesn't show it", h('div', { class: 'chips' }, s.transferable.map((t) => h('span', { class: 'chip', text: t }))),
+          h('p', { class: 'muted', text: 'Another of your CVs shows these better. Bringing them into the CV you send is the quickest gain.' }))
+      : []),
+    s.history ? h('p', { class: 'history', text: s.history }) : null,
+  );
+}
+
+/* Job Seeker: what Job Seeker Pro would add here - sold, not just mentioned. */
+function proTeaser(message) {
+  return h(
+    'div',
+    { class: 'card pro-card' },
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Know if this job is worth your evening' })),
+    h('p', { style: 'margin-top:8px', text: message || 'Job Insight comes with Job Seeker Pro - and it is free in the 14-day trial. On every job you look at:' }),
+    h('ul', { class: 'tips pro-pitch' }, INSIGHT_PITCH.map((t) => h('li', { text: t }))),
+    h('button', { class: 'btn gold', type: 'button', text: 'Upgrade to Job Seeker Pro', onclick: () => open(to.subscription()) }),
+    h('p', { class: 'for', text: 'Everything you have now stays exactly as it is.' }),
   );
 }
 
@@ -309,6 +368,7 @@ async function start() {
     }
     cvCount = typeof me.cv_count === 'number' ? me.cv_count : null;
     myCv = me.my_cv || null;
+    jobInsight = me.job_insight === true;
     showWho({ ...connection, user: me.user });
     homeScreen();
   } catch (err) {

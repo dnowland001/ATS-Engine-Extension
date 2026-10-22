@@ -109,3 +109,34 @@ export function summarise(fit, { cvCount = null, application = null } = {}) {
   }
   return out;
 }
+
+/*
+ * Job Insight (E3, 22 Oct 2026) - Job Seeker Pro and its trial - put into
+ * words. As above: every line comes from a field ATS Engine sent.
+ */
+const CRITERION = (c) => String(c || '').replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase());
+
+export function insightSummary(res) {
+  if (!res) return null;
+  const line = (c) => ({ label: CRITERION(c.criterion), detail: `${c.earned} of ${c.possible}`, percent: c.percent });
+  return {
+    verdict: res.verdict || '',
+    strongest: (res.strongest || []).map(line),
+    weakest: (res.weakest || []).map(line),
+    gaps: (res.gaps || []).map((g) => ({ ...g, skill: cap(g.skill), ev: EVIDENCE[g.band] || EVIDENCE.absent })),
+    transferable: (res.transferable || []).map((t) => cap(t.skill)),
+    history: res.history?.summary || '',
+    step: res.next_step || null,
+    noCv: Boolean(res.no_cv),
+    unreadable: res.scoreable === false && !res.no_cv,
+  };
+}
+
+/* What Job Seeker Pro adds on every job - the offer shown to Job Seeker. */
+export const INSIGHT_PITCH = [
+  'Why this job fits you - or why it does not - criterion by criterion',
+  'The gaps to fix first, and exactly how to fix each one',
+  'Skills you already have that this CV does not show',
+  'How your applications to roles like this have gone',
+  'The one thing to do next: apply, tailor, or move on',
+];

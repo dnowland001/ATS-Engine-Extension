@@ -71,3 +71,15 @@ describe('summarise', () => {
     expect(summarise(fit(), { application: { status: 'waiting' } }).applied).toBe(false);
   });
 });
+
+describe('job insight (E3)', () => {
+  it('words the criteria and keeps the evidence bands', async () => {
+    const { insightSummary } = await import('../../packages/core/match.js');
+    const s = insightSummary({ verdict: 'v', strongest: [{ criterion: 'skills_match', earned: 30, possible: 35 }], gaps: [{ skill: 'scrum', band: 'named', fix: 'f' }], transferable: [{ skill: 'sql' }], history: { summary: 'h' }, next_step: { title: 't' } });
+    expect(s.strongest[0]).toMatchObject({ label: 'Skills match', detail: '30 of 35' });
+    expect(s.gaps[0].skill).toBe('Scrum');
+    expect(s.gaps[0].ev.label).toBe('Named only');
+    expect(s.transferable).toEqual(['Sql']);
+    expect([s.history, s.step.title]).toEqual(['h', 't']);
+  });
+});

@@ -28,6 +28,8 @@ export async function launch(app, jobPageHtml) {
     channel: 'chromium',
     headless: true,
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+    // Marketing screenshots at 2x (SHOT_SCALE=2); tests ignore it.
+    ...(process.env.SHOT_SCALE ? { deviceScaleFactor: Number(process.env.SHOT_SCALE) } : {}),
     args: [`--disable-extensions-except=${out}`, `--load-extension=${out}`],
   });
   const sw = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));

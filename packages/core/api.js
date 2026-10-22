@@ -100,5 +100,7 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),
     seekerApplication: (jobId) => request(`/extension/seeker/jobs/${jobId}/application`),
     setStatus: (jobId, status) => request(`/extension/seeker/jobs/${jobId}/status`, { method: 'POST', body: { status } }),
+    // Job Insight (E3): Job Seeker Pro and its trial.
+    jobInsight: (jobId) => request(`/extension/seeker/jobs/${jobId}/insight`),
   };
 }
