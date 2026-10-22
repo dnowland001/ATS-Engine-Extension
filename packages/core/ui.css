@@ -170,3 +170,7 @@ body.seeker header.bar .who .login-label { color: var(--primary); }
 .fullfit .bar span { display: block; height: 100%; width: 40%; background: #e0a526; border-radius: 99px; animation: ffbar 1.4s ease-in-out infinite; }
 @keyframes ffbar { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
 .fit-ring .fit-word { white-space: nowrap; }
+
+/* Professional 1.1: a vacancy's potential fee (payer only) or the restricted label. */
+.commercial { display: inline-block; margin: 2px 0 8px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #8a5f00; background: #fff7dd; border: 1px solid #f0d78a; }
+.commercial.restricted { color: #64748b; background: transparent; border-style: dashed; border-color: #cbd5e1; font-weight: 600; }

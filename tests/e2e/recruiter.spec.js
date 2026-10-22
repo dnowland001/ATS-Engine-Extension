@@ -370,6 +370,29 @@ test('Professional: Professional insight shows coverage, must-haves, next steps,
   await Promise.all([job.close(), popup.close()]);
 });
 
+test('Professional 1.1: the payer sees the potential fee; anyone else the restricted label, never a figure', async () => {
+  for (const [commercial, expected, cls] of [
+    [{ restricted: false, value: 6000, currency: 'GBP', basis: '20%', label: '£6,000 potential fee' }, '£6,000 potential fee', 'commercial'],
+    [{ restricted: true, label: 'XXXXX — Financial information restricted to the authorised account payer.' }, 'XXXXX — Financial information restricted to the authorised account payer.', 'commercial restricted'],
+  ]) {
+    await connectAs();
+    await mockApi({
+      'GET /extension/me': PRO_ME,
+      'POST /extension/capture': [200, CAPTURED],
+      'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant', location: 'Leeds' } }],
+      'GET /extension/recruiter/jobs/77/intelligence': [200, { ...INTEL, commercial }],
+    });
+    const { job, popup } = await openPopup();
+    await popup.getByRole('button', { name: 'Capture job' }).click();
+    await popup.getByRole('button', { name: 'Create vacancy' }).click();
+    await popup.getByRole('button', { name: 'Professional insight' }).click();
+    await expect(popup.locator('p.commercial')).toHaveText(expected);
+    await expect(popup.locator('p.commercial')).toHaveAttribute('class', cls);
+    if (commercial.restricted) await expect(popup.locator('#app')).not.toContainText('6,000');
+    await Promise.all([job.close(), popup.close()]);
+  }
+});
+
 test('Standard: no Professional button, a teaser instead, and its own tools as before', async () => {
   await connectAs();
   await mockApi({

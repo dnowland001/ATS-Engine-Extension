@@ -7,7 +7,7 @@ the popup. Nothing here stores a CV, a candidate or a token in a page.
 
 | Extension | Version | Standard (unchanged) | Upgrade |
 |---|---|---|---|
-| ATS Engine - Recruiters | 0.4.1 | Capture job, Match my database, Advert Health, Job Analysis | ATS Engine Professional: **Professional insight** on a vacancy (E1), **Capture candidate** (E2) |
+| ATS Engine - Recruiters | 0.4.2 | Capture job, Match my database, Advert Health, Job Analysis | ATS Engine Professional: **Professional insight** on a vacancy (E1), **Capture candidate** (E2) |
 | ATS Engine - Seekers | 0.3.2 | Check my match, requirements judged, Tailor my CV, tracker | Job Seeker Pro and its trial: **Job Insight** (E3) |
 
 ## Who gets what - always decided by the server
@@ -72,3 +72,13 @@ app) and `python ops/job-insight-launch.py show` in the mainsite repo. Steps:
 
 - Extension: `tests/unit` (`professionalSummary`, `candidateSummary`, `insightSummary`, `pageSlice`) and `tests/e2e` (real Chromium, both extensions, Standard and Professional paths, refusals, paging, confirmation before adding).
 - Backend: `ExtensionVacancyIntelligenceTest`, `ExtensionCandidateContextTest`, `ExtensionSeekerInsightTest`, `ExtensionDowngradeTest`, `ExtensionSeekerFullFitTest`.
+
+## Professional 1.1 (22 Oct 2026) - money in the recruiter popup
+
+Professional insight carries the vacancy's `commercial` line: the potential
+fee for the organisation's payer and the people they allowed, and
+*XXXXX — Financial information restricted to the authorised account payer.*
+for everyone else. The server sends one or the other; the popup never
+receives a figure it may not show. Recruiters 0.4.2. See the backend's
+docs/PROFESSIONAL-1.1.md.
+

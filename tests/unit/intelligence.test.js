@@ -55,6 +55,13 @@ describe('professional insight (E1)', () => {
     expect([step.bandLabel, step.points]).toEqual(['Today', 66]);
     expect(step.parts).toEqual(['Strong match +50', '86 against 70 +16']);
   });
+  it('shows the potential fee or the restricted label exactly as the server sent it', () => {
+    expect(professionalSummary({ commercial: { restricted: false, label: '£6,000 potential fee' } }).commercial).toEqual({ restricted: false, label: '£6,000 potential fee' });
+    const r = professionalSummary({ commercial: { restricted: true, label: 'XXXXX — Financial information restricted to the authorised account payer.' } }).commercial;
+    expect(r.restricted).toBe(true);
+    expect(r.label).toMatch(/^XXXXX/);
+    expect(professionalSummary({}).commercial).toBeNull();
+  });
   it('leaves out what the account does not have', () => {
     const s = professionalSummary({ scoreable: true, gaps: [] });
     expect([s.coverage, s.matches, s.missing, s.steps]).toEqual([null, null, [], []]);

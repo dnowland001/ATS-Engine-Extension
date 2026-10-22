@@ -88,6 +88,9 @@ export function professionalSummary(res) {
   return {
     unread,
     coverage,
+    // Professional 1.1: the potential fee, or the restricted label - the
+    // server decides which; the popup only shows what it is sent.
+    commercial: res.commercial ? { restricted: Boolean(res.commercial.restricted), label: res.commercial.label || '' } : null,
     missing: res.missing_must_haves?.skills || [],
     missingWhy: res.missing_must_haves?.gap?.why || '',
     steps: (res.next_actions || []).map((a) => ({

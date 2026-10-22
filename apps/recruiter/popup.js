@@ -516,6 +516,7 @@ function proPanel(res, jobId) {
     { class: 'card pro-card' },
     h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Professional insight' })),
     s.unread ? h('p', { class: 'muted', text: s.unread }) : null,
+    s.commercial ? h('p', { class: s.commercial.restricted ? 'commercial restricted' : 'commercial', text: s.commercial.label }) : null,
     s.coverage ? h('div', { class: `cover ${s.coverage.tone}` }, h('strong', { text: s.coverage.headline }), s.coverage.detail && s.coverage.tone !== 'ok' ? h('span', { text: s.coverage.detail }) : null) : null,
     ...(s.missing.length ? section('Must-haves nobody in your pool shows', h('div', { class: 'chips' }, s.missing.map((x) => h('span', { class: 'chip warn', text: x }))), s.missingWhy ? h('p', { class: 'muted', text: s.missingWhy }) : null) : []),
     ...(s.steps.length
