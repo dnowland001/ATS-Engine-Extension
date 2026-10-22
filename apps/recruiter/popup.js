@@ -19,12 +19,18 @@ import { VACANCY_FIELDS, DUPLICATE_REASONS, cleanFields, missingRequired } from 
 import { h, notice, fill } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { links } from './core/links.js';
-import { advertChecks, advertImprovements, matchSummary, CHECK_STATUS } from './core/intelligence.js';
+import { advertChecks, advertImprovements, matchSummary, professionalSummary, CHECK_STATUS } from './core/intelligence.js';
 
 const app = document.getElementById('app');
 const who = document.getElementById('who');
 const foot = document.getElementById('foot');
 const to = links(CONFIG.appBase);
+
+// What this account may use (ATS Engine Professional, 22 Oct 2026), from
+// /extension/me. Only decides what is offered - the server refuses anything
+// the account does not have.
+let caps = [];
+const isPro = () => caps.includes('intelligence_centre');
 
 const api = createApi({
   baseUrl: CONFIG.apiBase,
@@ -204,6 +210,7 @@ function doneScreen(job) {
       panel.replaceChildren(render(await call()));
     } catch (err) {
       if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402 && err.code === 'plan_feature_unavailable') return panel.replaceChildren(proOffer(err.message));
       if (err.status === 402) return planScreen(err.message);
       panel.replaceChildren(notice('bad', err.message));
     }
@@ -221,6 +228,10 @@ function doneScreen(job) {
         h('button', { class: 'btn secondary', type: 'button', text: 'Advert Health', onclick: run('Running Advert Health', () => api.advertHealth(id), (r) => advertPanel(r, id)) }),
         h('button', { class: 'btn secondary', type: 'button', text: 'Job Analysis', onclick: run('Reading the vacancy', () => api.jobAnalysis(id), (r) => analysisPanel(r, id)) }),
       ) : null,
+      id && isPro()
+        ? h('button', { class: 'btn gold', type: 'button', style: 'margin-top:8px', text: 'Professional insight', onclick: run('Working out coverage, gaps and next steps', () => api.vacancyIntelligence(id), (r) => proPanel(r, id)) })
+        : null,
+      id && !isPro() ? h('p', { class: 'pro-tease' }, h('span', { class: 'pro-tag', text: 'PRO' }), ' With ATS Engine Professional: who in your pool fits this vacancy, the gaps that will stop a shortlist, and what to do next.') : null,
     ),
     panel,
     h(
@@ -292,6 +303,65 @@ function analysisPanel(a, jobId) {
   );
 }
 
+/* ATS Engine Professional (E1): a vacancy's coverage, gaps, strong matches and next steps. */
+function proPanel(res, jobId) {
+  const s = professionalSummary(res);
+  const go = (path) => () => open(to.route(path));
+  const section = (title, ...nodes) => [h('h2', { style: 'margin-top:12px', text: title }), ...nodes];
+  return h(
+    'div',
+    { class: 'card pro-card' },
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Professional insight' })),
+    s.unread ? h('p', { class: 'muted', text: s.unread }) : null,
+    s.coverage ? h('div', { class: `cover ${s.coverage.tone}` }, h('strong', { text: s.coverage.headline }), s.coverage.detail && s.coverage.tone !== 'ok' ? h('span', { text: s.coverage.detail }) : null) : null,
+    ...(s.missing.length ? section('Must-haves nobody in your pool shows', h('div', { class: 'chips' }, s.missing.map((x) => h('span', { class: 'chip warn', text: x }))), s.missingWhy ? h('p', { class: 'muted', text: s.missingWhy }) : null) : []),
+    ...(s.steps.length
+      ? section('Next steps', h('ol', { class: 'steps' }, s.steps.map((a) => h('li', {},
+          h('div', { class: 'step-top' }, h('span', { class: `pill ${a.band}`, text: a.bandLabel }), h('span', { class: 'pts', title: a.parts.join(' · '), text: `${a.points} pts` })),
+          h('strong', { text: a.title }),
+          a.reason ? h('span', { class: 'muted', text: a.reason }) : null,
+          a.destination ? h('button', { class: 'link', type: 'button', text: a.action, onclick: go(a.destination) }) : null,
+        ))))
+      : []),
+    ...(s.matches
+      ? section(`Strong matches not yet approached (${s.matches.total})`,
+          s.matches.items.length
+            ? h('ul', { class: 'people' }, s.matches.items.map((c) => h('li', {},
+                h('span', { class: 'sc green', text: `${c.score}%` }),
+                h('span', { class: 'who' }, h('strong', { text: c.name || 'Unnamed' }), h('span', { class: 'muted', text: [c.headline, c.town].filter(Boolean).join(' · ') })),
+                h('button', { class: 'link', type: 'button', text: 'View', onclick: go(c.destination) }),
+              )))
+            : h('p', { class: 'muted', text: 'Nobody new: everyone who meets your minimum has already applied or been put forward.' }))
+      : []),
+    ...(s.gaps.length
+      ? section('Open gaps on this vacancy', h('ul', { class: 'gaplist' }, s.gaps.map((g) => h('li', {},
+          h('span', { class: `pill ${g.tone}`, text: g.severity }),
+          h('span', { class: 'who' }, h('strong', { text: g.title }), h('span', { class: 'muted', text: g.why || '' })),
+          g.destination ? h('button', { class: 'link', type: 'button', text: g.action_label || 'Open', onclick: go(g.destination) }) : null,
+        ))))
+      : []),
+    h('p', { class: 'muted', style: 'margin-top:8px', text: 'Counted by ATS Engine from your own records, with your desk\'s own minimum and priority points.' }),
+    h('button', { class: 'link', type: 'button', text: 'Open the Intelligence Centre', onclick: () => open(to.professional()) }),
+  );
+}
+
+/* A Standard desk asking for a Professional insight. */
+function proOffer(message) {
+  return h(
+    'div',
+    { class: 'card pro-card' },
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Part of ATS Engine Professional' })),
+    h('p', { text: message || 'This is part of ATS Engine Professional.' }),
+    h('ul', { class: 'tips' },
+      h('li', { text: 'Who in your pool fits this vacancy, and whether there are enough for a shortlist' }),
+      h('li', { text: 'Must-haves nobody in your pool can show, before the client asks' }),
+      h('li', { text: 'Strong matches nobody has approached yet' }),
+      h('li', { text: 'The next step, with the reason it comes first' }),
+    ),
+    h('button', { class: 'btn gold', type: 'button', text: 'See ATS Engine Professional', onclick: () => open(to.team()) }),
+  );
+}
+
 /* Free accounts: the extension is part of the paid plans and the trial. */
 function planScreen(message) {
   show(
@@ -323,6 +393,7 @@ async function start() {
     if (me.role && me.role !== 'recruiter') {
       return connectScreen('You are signed in with a job seeker account. This is the recruiter extension - use ATS Engine - Seekers instead, and you can remove this one.');
     }
+    caps = Array.isArray(me.capabilities) ? me.capabilities : [];
     showWho({ ...connection, user: me.user });
   } catch (err) {
     if (err.status === 401) connectScreen(err.message);

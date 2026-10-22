@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { advertChecks, advertImprovements, matchSummary, bandLabel } from '../../packages/core/intelligence.js';
+import { advertChecks, advertImprovements, matchSummary, bandLabel, professionalSummary } from '../../packages/core/intelligence.js';
 
 describe('advert health', () => {
   const report = {
@@ -31,5 +31,35 @@ describe('match my database', () => {
   });
   it('never ranks anyone when the vacancy could not be read', () => {
     expect(matchSummary({ scoreable: false }).headline).toBe('Nothing to match on yet');
+  });
+});
+
+describe('professional insight (E1)', () => {
+  const res = {
+    scoreable: true, threshold: 70,
+    coverage: { suitable: 1, minimum: 3, meets: false, gap: { why: 'A shortlist needs at least 3 people who fit.' } },
+    missing_must_haves: { skills: ['forklift operation'], gap: { why: 'Has to be sourced.' } },
+    gaps: [{ id: 4, severity: 'critical', title: 'DBS expired', why: 'May not be placed.', destination: '/recruiter/candidates/5' }],
+    opportunities: { total: 2, threshold: 70, items: [{ candidate_id: 5, name: 'Sam', score: 86, town: 'Leeds', destination: '/recruiter/candidates/5' }] },
+    next_actions: [{ title: 'Sam for Care', reason: 'r', priority: { score: 66, band: 'today', parts: [{ label: 'Strong match', points: 50 }, { label: '86 against 70', points: 16 }] }, action: { label: 'Open candidate' }, destination: '/recruiter/candidates/5' }],
+  };
+  it("words coverage against the desk's own minimum", () => {
+    const s = professionalSummary(res);
+    expect(s.coverage.headline).toBe('Only 1 suitable - your desk aims for 3');
+    expect(s.coverage.tone).toBe('warn');
+    expect(professionalSummary({ coverage: { suitable: 0, minimum: 3, meets: false } }).coverage.tone).toBe('bad');
+    expect(professionalSummary({ coverage: { suitable: 4, minimum: 3, meets: true } }).coverage.headline).toBe('4 suitable candidates - enough for a shortlist');
+  });
+  it("keeps ATS Engine's points and shows how they add up", () => {
+    const [step] = professionalSummary(res).steps;
+    expect([step.bandLabel, step.points]).toEqual(['Today', 66]);
+    expect(step.parts).toEqual(['Strong match +50', '86 against 70 +16']);
+  });
+  it('leaves out what the account does not have', () => {
+    const s = professionalSummary({ scoreable: true, gaps: [] });
+    expect([s.coverage, s.matches, s.missing, s.steps]).toEqual([null, null, [], []]);
+  });
+  it('says when the vacancy could not be read', () => {
+    expect(professionalSummary({ scoreable: false }).unread).toContain("couldn't read");
   });
 });

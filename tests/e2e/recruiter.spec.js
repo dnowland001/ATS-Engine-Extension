@@ -321,3 +321,84 @@ test('a job seeker account is pointed to the job seeker extension', async () => 
   await expect(popup.getByRole('button', { name: 'Capture job' })).toHaveCount(0);
   await popup.close();
 });
+
+// ---- ATS Engine Professional (E1, 22 Oct 2026) ------------------------------
+const PRO_ME = [200, { user: { name: 'Dennis Nowland', organisation: 'ATS Engine' }, role: 'recruiter', capabilities: ['intelligence_centre', 'intelligence_gaps_advanced', 'intelligence_opportunities', 'intelligence_next_best_action'] }];
+const INTEL = {
+  vacancy: { id: 77, title: 'Senior Care Assistant', destination: '/jobs?open=77' },
+  scoreable: true, threshold: 70, considered: 3, with_cv: 3, limited: false,
+  coverage: { suitable: 1, minimum: 3, meets: false, gap: { severity: 'high', title: 'Only 1 suitable candidate - Senior Care Assistant', why: 'A shortlist needs at least 3 people who fit.' } },
+  missing_must_haves: { skills: ['nvq level 3'], gap: { why: 'Has to be sourced, or relaxed with the client.' } },
+  gaps: [{ id: 9, severity: 'medium', category: 'Advert quality', title: 'Advert has no salary - Senior Care Assistant', why: 'Adverts without pay get fewer applications.', action_label: 'Open vacancy', destination: '/jobs?open=77' }],
+  opportunities: { total: 1, threshold: 70, items: [{ candidate_id: 501, name: 'Strong Sam', headline: 'Senior carer', town: 'Leeds', score: 86, matched: ['personal care'], missing: [], destination: '/recruiter/candidates/501' }] },
+  next_actions: [
+    { key: 'live-match:501', kind: 'opportunity', title: 'Strong Sam for Senior Care Assistant', reason: 'A strong match in your own pool who has not been approached.', priority: { score: 66, band: 'today', parts: [{ label: 'Strong match, not yet approached', points: 50 }, { label: '86 against a pass mark of 70', points: 16 }] }, action: { label: 'Open candidate' }, destination: '/recruiter/candidates/501' },
+    { key: 'live:candidate_coverage.few_suitable', kind: 'gap', title: 'Only 1 suitable candidate - Senior Care Assistant', reason: 'A shortlist needs at least 3.', priority: { score: 40, band: 'this_week', parts: [{ label: 'High gap', points: 40 }] }, action: { label: 'Open vacancy' }, destination: '/jobs?open=77' },
+  ],
+};
+
+test('Professional: Professional insight shows coverage, must-haves, next steps, matches and gaps from ATS Engine', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant', location: 'Leeds' } }],
+    'GET /extension/recruiter/jobs/77/intelligence': [200, INTEL],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+  await expect(popup.locator('.pro-tease')).toHaveCount(0);
+
+  await popup.getByRole('button', { name: 'Professional insight' }).click();
+  await expect(popup.locator('.cover.warn')).toContainText('Only 1 suitable - your desk aims for 3');
+  await expect(popup.locator('.chip.warn', { hasText: 'nvq level 3' })).toHaveCount(1);
+  await expect(popup.locator('.steps li').first()).toContainText('Today');
+  await expect(popup.locator('.steps li').first()).toContainText('66 pts');
+  await expect(popup.locator('.steps li').first().locator('.pts')).toHaveAttribute('title', 'Strong match, not yet approached +50 · 86 against a pass mark of 70 +16');
+  await expect(popup.getByRole('heading', { name: 'Strong matches not yet approached (1)' })).toBeVisible();
+  await expect(popup.locator('.gaplist li')).toContainText('Advert has no salary');
+  await expect(popup.locator('#app')).not.toContainText('null');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1100 }), await popup.screenshot({ path: `${process.env.SHOTS}/pro.png`, fullPage: true });
+
+  await popup.locator('.steps li').first().getByRole('button', { name: 'Open candidate' }).click();
+  await popup.locator('.gaplist li').first().getByRole('button', { name: 'Open vacancy' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual([
+    'https://app.ats-engine.com/recruiter/candidates/501',
+    'https://app.ats-engine.com/jobs?open=77',
+  ]);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Standard: no Professional button, a teaser instead, and its own tools as before', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant' } }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+  await expect(popup.getByRole('button', { name: 'Professional insight' })).toHaveCount(0);
+  await expect(popup.locator('.pro-tease')).toContainText('With ATS Engine Professional');
+  await expect(popup.getByRole('button', { name: 'Match my database' })).toBeVisible();
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Professional refused by the server (e.g. just downgraded): the offer, not an error', async () => {
+  await connectAs();
+  await mockApi({
+    'GET /extension/me': PRO_ME,
+    'POST /extension/capture': [200, CAPTURED],
+    'POST /extension/recruiter/jobs': [201, { data: { id: 77, title: 'Senior Care Assistant' } }],
+    'GET /extension/recruiter/jobs/77/intelligence': [402, { error: 'plan_feature_unavailable', message: 'This is part of ATS Engine Professional.' }],
+  });
+  const { job, popup } = await openPopup();
+  await popup.getByRole('button', { name: 'Capture job' }).click();
+  await popup.getByRole('button', { name: 'Create vacancy' }).click();
+  await popup.getByRole('button', { name: 'Professional insight' }).click();
+  await expect(popup.getByRole('heading', { name: 'Part of ATS Engine Professional' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Capture another job' })).toBeVisible(); // still on the vacancy
+  await Promise.all([job.close(), popup.close()]);
+});

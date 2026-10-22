@@ -58,3 +58,51 @@ export function matchSummary(res) {
     top: res.top || [],
   };
 }
+
+/*
+ * ATS Engine Professional in the recruiter extension (E1, 22 Oct 2026):
+ * a vacancy's intelligence put into words. As with everything above,
+ * nothing is worked out here - the counts, gaps, matches and points are
+ * ATS Engine's, and a section the account does not have is simply absent.
+ */
+export const SEVERITY_TONE = { critical: 'bad', high: 'warn', medium: 'warn', low: 'muted' };
+export const BAND_LABEL = { now: 'Now', today: 'Today', this_week: 'This week' };
+
+export function professionalSummary(res) {
+  if (!res) return null;
+  const cov = res.coverage;
+  const coverage = cov
+    ? {
+        tone: cov.meets ? 'ok' : cov.suitable === 0 ? 'bad' : 'warn',
+        headline: cov.meets
+          ? `${cov.suitable} suitable candidate${cov.suitable === 1 ? '' : 's'} - enough for a shortlist`
+          : cov.suitable === 0
+            ? 'Nobody suitable in your pool yet'
+            : `Only ${cov.suitable} suitable - your desk aims for ${cov.minimum}`,
+        detail: cov.gap?.why || '',
+      }
+    : null;
+  const unread = res.scoreable === false
+    ? "ATS Engine couldn't read this vacancy's requirements yet, so coverage and matches wait until the essentials are on the vacancy."
+    : '';
+  return {
+    unread,
+    coverage,
+    missing: res.missing_must_haves?.skills || [],
+    missingWhy: res.missing_must_haves?.gap?.why || '',
+    steps: (res.next_actions || []).map((a) => ({
+      title: a.title,
+      reason: a.reason || '',
+      band: a.priority?.band || 'this_week',
+      bandLabel: BAND_LABEL[a.priority?.band] || 'This week',
+      points: a.priority?.score ?? 0,
+      parts: (a.priority?.parts || []).map((p) => `${p.label} +${p.points}`),
+      action: a.action?.label || 'Open',
+      destination: a.destination || null,
+    })),
+    matches: res.opportunities
+      ? { total: res.opportunities.total, threshold: res.opportunities.threshold, items: res.opportunities.items || [] }
+      : null,
+    gaps: (res.gaps || []).map((g) => ({ ...g, tone: SEVERITY_TONE[g.severity] || 'muted' })),
+  };
+}

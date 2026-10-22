@@ -7,6 +7,10 @@ export const links = (appBase) => ({
   candidates: () => `${appBase}/recruiter/candidates`,
   candidate: (id) => `${appBase}/recruiter/candidates/${encodeURIComponent(id)}`,
   settings: () => `${appBase}/settings`,
+  // A route ATS Engine itself gave (Professional's gaps and next steps carry their own).
+  route: (path) => (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') ? `${appBase}${path}` : `${appBase}/`),
+  professional: () => `${appBase}/intelligence`,
+  team: () => `${appBase}/users`,
   subscription: () => `${appBase}/subscription`,
   // Job seeker screens.
   jobAnalysis: (id) => `${appBase}/jobs?open=${encodeURIComponent(id)}`,

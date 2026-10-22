@@ -89,6 +89,8 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     advertHealth: (id) => request(`/extension/recruiter/jobs/${id}/advert-health`, { method: 'POST', body: {} }),
     jobAnalysis: (id) => request(`/extension/recruiter/jobs/${id}/analysis`),
     matchDatabase: (id) => request(`/extension/recruiter/jobs/${id}/match-database`, { method: 'POST', body: {} }),
+    // ATS Engine Professional (E1): the vacancy's intelligence.
+    vacancyIntelligence: (id) => request(`/extension/recruiter/jobs/${id}/intelligence`),
     // Job seeker extension.
     checkMatch: (fields) => request('/extension/seeker/jobs', { method: 'POST', body: fields }),
     markApplied: (jobId) => request(`/extension/seeker/jobs/${jobId}/applied`, { method: 'POST', body: {} }),
