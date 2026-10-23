@@ -40,7 +40,9 @@ const FIT = {
 };
 const JOB = (fit = FIT, application = { id: 9, status: 'waiting', applied_on: null }) => ({ data: { id: 55, title: 'Delivery Manager', company: 'Acme Bank', candidate_fit: fit, application } });
 const ME = (cv_count = 2, my_cv = { id: 9, version_number: 3, updated_at: '2026-10-20T10:00:00Z' }) => [200, { user: USER, role: 'seeker', cv_count, my_cv }];
-const TRACK = (status = 'waiting', next = ['applied', 'withdrawn'], applied_on = null) => [200, { id: 9, status, applied_on, next }];
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const day = (n) => iso(new Date(Date.now() + n * 86400000));
+const TRACK = (status = 'waiting', next = ['applied', 'withdrawn'], applied_on = null, extra = {}) => [200, { id: 9, status, applied_on, next, checked_on: day(0), follow_up_on: applied_on ? day(7) : null, ...extra }];
 
 test('not connected: the seeker pitch and Connect', async () => {
   await x.disconnectLocally();
@@ -62,7 +64,7 @@ test('check a job: review, match, requirements, next step, tracker, tailor', asy
     'GET /extension/seeker/jobs/55/application': TRACK(),
     'POST /extension/seeker/jobs/55/status': (req) => {
       const to = JSON.parse(req.postData()).status;
-      return to === 'applied' ? TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], '2026-10-21') : TRACK(to, ['offer', 'rejected', 'withdrawn'], '2026-10-21');
+      return to === 'applied' ? TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], day(0)) : TRACK(to, ['offer', 'rejected', 'withdrawn'], day(0));
     },
   });
   const { job, popup } = await x.popupOnJob();
@@ -91,12 +93,16 @@ test('check a job: review, match, requirements, next step, tracker, tailor', asy
   expect(sent.body.salary).toBeUndefined();
 
   // Tracker: exactly the moves ATS Engine sent.
-  await expect(popup.getByRole('heading', { name: 'Application Tracker' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Apply for this job' })).toBeVisible();
+  await expect(popup.locator('.journey .jstep')).toHaveCount(3);
+  await expect(popup.locator('.jstep.current .jlabel')).toHaveText('Applied');
   await expect(popup.getByText('Waiting', { exact: true })).toBeVisible();
   await expect(popup.getByRole('button', { name: 'Got an offer' })).toHaveCount(0);
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1200 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-result.png`, fullPage: true });
   await popup.getByRole('button', { name: "I've applied" }).click();
-  await expect(popup.getByText('Marked as applied (2026-10-21).')).toBeVisible();
+  await expect(popup.getByText(/Marked as applied on .* Good luck!/)).toBeVisible();
+  await expect(popup.getByText(/ATS Engine will remind you on .* \(in 7 days\)\./)).toBeVisible();
+  await expect(popup.getByRole('button', { name: '1 week' })).toHaveAttribute('aria-pressed', 'true');
   await expect(popup.getByRole('button', { name: "I've applied" })).toHaveCount(0);
   await popup.getByRole('button', { name: 'Got an interview' }).click();
   await expect(popup.getByText('Moved to Interview.')).toBeVisible();
@@ -138,7 +144,7 @@ test('a move the tracker refuses shows why', async () => {
   await popup.getByRole('button', { name: 'Check my match' }).click();
   await popup.getByRole('button', { name: "I've applied" }).click();
   await expect(popup.getByText(/cannot move this job/)).toBeVisible();
-  await expect(popup.getByText('Applied', { exact: true })).toBeVisible();
+  await expect(popup.locator('.tracker-line .pill')).toHaveText('Applied');
   await Promise.all([job.close(), popup.close()]);
 });
 
@@ -239,7 +245,7 @@ test('Job Seeker Pro: Job Insight - verdict, next step, strengths, gaps to fix, 
   await popup.getByRole('button', { name: 'Check this job' }).click();
   await popup.getByRole('button', { name: 'Check my match' }).click();
 
-  const card = popup.locator('.pro-card');
+  const card = popup.locator('.pro-card:not(.advert-card)');
   await expect(card.getByRole('heading', { name: 'Job Insight' })).toBeVisible();
   await expect(card).toContainText('A good fit: 78% against your 70% minimum.');
   await expect(card.locator('.next-step')).toContainText('Next: Tailor your CV, then apply');
@@ -273,7 +279,7 @@ test('Job Seeker: Job Insight is sold, with the upgrade one click away', async (
   const card = popup.locator('.pro-card');
   await expect(card.getByRole('heading', { name: 'Know if this job is worth your evening' })).toBeVisible();
   await expect(card).toContainText('free in the 14-day trial');
-  await expect(card.locator('.pro-pitch li')).toHaveCount(5);
+  await expect(card.locator('.pro-pitch li')).toHaveCount(8); // Job Insight's five and applying's three
   expect(x.calls.some((c) => c.path.endsWith('/insight'))).toBe(false); // never asked for
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1300 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-teaser.png`, fullPage: true });
   await card.getByRole('button', { name: 'Upgrade to Job Seeker Pro' }).click();
@@ -295,7 +301,7 @@ test('a job already in their ATS Engine shows its fit straight away, without che
   });
   const { job, popup } = await x.popupOnJob();
   await popup.getByRole('button', { name: 'Check this job' }).click();
-  await expect(popup.getByText('This job is already in your ATS Engine - here is your fit.')).toBeVisible();
+  await expect(popup.getByText('This job is already in your ATS Engine - here is your fit, and where your application is.')).toBeVisible();
   await expect(popup.getByRole('img', { name: '78% fit' })).toBeVisible();
   await expect(popup.locator('.fullfit.is-first')).toContainText('Before the full analysis');
   expect(x.calls.some((c) => c.method === 'POST' && c.path === '/extension/seeker/jobs')).toBe(false);
@@ -345,5 +351,93 @@ test('before the full analysis: make the tailored CV here, then the full fit and
   await expect(popup.getByRole('button', { name: 'Download tailored CV' })).toBeVisible({ timeout: 10000 });
   await expect(popup.getByRole('img', { name: '86% fit, tailored CV' })).toBeVisible();
   expect(made).toEqual({ candidate_id: 7, job_posting_id: 55, type: 'tailored_cv' });
+  await Promise.all([job.close(), popup.close()]);
+});
+
+/* ---- 0.4.0: applying, made easy ------------------------------------------ */
+const ANSWERS = [200, {
+  answers: [
+    { key: 'name', label: 'Full name', value: 'Amy Jones', group: 'about' },
+    { key: 'phone', label: 'Phone', value: '07700 900123', group: 'about' },
+    { key: 'linkedin', label: 'LinkedIn', value: 'https://www.linkedin.com/in/amy', group: 'links' },
+  ],
+  missing: ['GitHub', 'Security clearance'],
+  profile_path: '/candidate',
+}];
+const PRO_ME2 = [200, { user: USER, role: "seeker", cv_count: 2, my_cv: { id: 9, version_number: 3 }, job_insight: true, candidate_id: 7, documents: true }];
+const INSIGHT2 = [200, { scoreable: true, score: 78, verdict: 'A strong fit.', strongest: [], weakest: [], gaps: [], transferable: [], next_step: null, history: null }];
+
+test('seen before, Pro: the journey, advert check, screening answer, form helper and follow-up', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': PRO_ME2,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 55, title: 'Delivery Manager' }] }],
+    'GET /extension/seeker/jobs/55': [200, JOB().data],
+    'GET /extension/seeker/jobs/55/insight': INSIGHT2,
+    'GET /extension/seeker/jobs/55/application': TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], day(-3), { checked_on: day(-4), follow_up_on: day(4) }),
+    'POST /extension/seeker/jobs/55/follow-up': (req) => TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], day(-3), { checked_on: day(-4), follow_up_on: day(-3 + JSON.parse(req.postData()).days) }),
+    'POST /extension/seeker/jobs/55/advert-check': [200, {
+      closing: { date: day(2), days_left: 2, passed: false }, reminder: false, pay_shown: true, clear: false,
+      signs: [{ level: 'bad', title: 'Asks you to pay', why: 'A genuine employer does not charge you.', found: '...a small training fee of £50...' }, { level: 'warn', title: 'Contact by WhatsApp or Telegram', why: 'Worth questioning.', found: null }],
+    }],
+    'POST /extension/seeker/jobs/55/screening-answer': [200, { answer: 'At Acme I led agile delivery for two payments teams.', needs: null, sources: 2, left_today: 24 }],
+    'GET /extension/seeker/form-answers': ANSWERS,
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+
+  await expect(popup.getByText('SEEN BEFORE', { exact: true })).toBeVisible();
+  await expect(popup.locator('.apply-head .seen-tag')).toContainText('SEEN');
+  await expect(popup.locator('.jstep.done')).toHaveCount(2);
+  await expect(popup.locator('.jstep').nth(2).locator('.jlabel')).toHaveText('Follow up');
+
+  // Advert check.
+  await expect(popup.getByRole('heading', { name: 'Advert check' })).toBeVisible();
+  await expect(popup.getByText('Closes in 2 days')).toBeVisible();
+  await expect(popup.locator('.sign.bad')).toContainText('Asks you to pay');
+  await expect(popup.locator('.sign.warn')).toContainText('WhatsApp');
+
+  // Follow-up: 2 weeks.
+  await expect(popup.getByRole('button', { name: '1 week' })).toHaveAttribute('aria-pressed', 'true');
+  await popup.getByRole('button', { name: '2 weeks' }).click();
+  await expect(popup.getByRole('button', { name: '2 weeks' })).toHaveAttribute('aria-pressed', 'true');
+  expect(x.calls.find((c) => c.path === '/extension/seeker/jobs/55/follow-up').body).toEqual({ days: 14 });
+
+  // Screening answer.
+  await popup.getByLabel('The screening question').fill('Tell us about a time you led a team through change.');
+  await popup.getByRole('button', { name: 'Write my answer' }).click();
+  await expect(popup.getByText('At Acme I led agile delivery for two payments teams.')).toBeVisible();
+  await expect(popup.getByText(/From 2 things on your record/)).toBeVisible();
+
+  // Form helper inside step 1.
+  await popup.getByRole('button', { name: 'Show my answers' }).click();
+  await expect(popup.locator('.answers li')).toHaveCount(3);
+  await expect(popup.getByText('Not in your profile yet: GitHub, Security clearance.')).toBeVisible();
+  await popup.locator('.answers li').nth(1).getByRole('button').click();
+  await expect(popup.locator('.answers li').nth(1).getByRole('button')).toHaveText('✓ Copied');
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 2200 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-apply.png`, fullPage: true });
+  await popup.getByRole('button', { name: 'Add them once in your profile →' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/candidate']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Job Seeker: screening answers locked with the Pro pitch, no advert check; the form helper from home', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(), 'GET /extension/seeker/form-answers': ANSWERS,
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Open the form helper' }).click();
+  await expect(popup.getByRole('heading', { name: 'Your form helper' })).toBeVisible();
+  await expect(popup.getByText('07700 900123')).toBeVisible();
+  await popup.getByRole('button', { name: 'Back' }).click();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await expect(popup.getByRole('heading', { name: 'Apply for this job' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'See Job Seeker Pro' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Advert check' })).toHaveCount(0);
+  expect(x.calls.some((c) => c.path.endsWith('/advert-check'))).toBe(false);
+  await expect(popup.getByText(/Screening questions answered from your own CV/)).toBeVisible(); // in the Pro pitch
   await Promise.all([job.close(), popup.close()]);
 });

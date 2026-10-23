@@ -114,5 +114,11 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     downloadDocument: (id) => request(`/extension/seeker/documents/${id}/download`, { asBlob: true }),
     // Job Insight (E3): Job Seeker Pro and its trial.
     jobInsight: (jobId) => request(`/extension/seeker/jobs/${jobId}/insight`),
+    // Applying, made easy (0.4.0, 23 Oct 2026). Every paid plan: the follow-up reminder and the form helper.
+    followUp: (jobId, days) => request(`/extension/seeker/jobs/${jobId}/follow-up`, { method: 'POST', body: { days } }),
+    formAnswers: () => request('/extension/seeker/form-answers'),
+    // Job Seeker Pro and its trial: the advert check and screening answers.
+    advertCheck: (jobId) => request(`/extension/seeker/jobs/${jobId}/advert-check`, { method: 'POST', body: {} }),
+    screeningAnswer: (jobId, question) => request(`/extension/seeker/jobs/${jobId}/screening-answer`, { method: 'POST', body: { question } }),
   };
 }

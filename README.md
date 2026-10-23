@@ -49,6 +49,12 @@ npm run zip                # also a store zip of each in dist/
    - Seekers: **`ffgpmgfpnieeabdhknepiikackpendmk`** - https://chromewebstore.google.com/detail/ats-engine-seekers/ffgpmgfpnieeabdhknepiikackpendmk
    Each store ID is also in the backend's `config/extension.php` roles.
 
+### Seekers 0.4.0 - applying, made easy (23 Oct 2026)
+
+- **Seen before**: a job already in their ATS Engine shows its journey - checked, applied, follow up.
+- **Apply for this job**, three steps: the form helper (`GET /extension/seeker/form-answers` - their own profile, copy only, nothing typed into the page); screening answers (Pro, `POST .../jobs/{id}/screening-answer` - the Interview Centre's grounded answer agent, their own record only, 25 a day); I've applied with a follow-up reminder (`POST .../jobs/{id}/follow-up`, 5 / 7 / 14 days, the bell on the day).
+- **Advert check** (Pro, `POST .../jobs/{id}/advert-check`): the closing date (kept on the tracker row; the bell two days before if not applied) and warning signs, read deterministically from the advert's own words.
+
 ### Job seeker flow
 
 Check this job → review the captured fields → **Check my match**. That is ATS Engine's own Add a job (Job Analysis): the job is saved to the candidate's account, analysed, scored against their CVs and put in their Application Tracker as Waiting / Long shot. The popup shows the score, the band against their own minimum, each requirement's evidence (Evidenced / Practised / Named only / Not evidenced), and a next step worded only from ATS Engine's result. **I've applied** moves the tracker row to Applied.

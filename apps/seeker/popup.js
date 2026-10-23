@@ -5,6 +5,12 @@
  *           -> your match, requirements, next step
  *           -> View full analysis / Tailor my CV / I've applied / Tracker
  *
+ * 0.4.0 (23 Oct 2026), applying made easy: "you've seen this before" with
+ * the application's journey; Apply for this job in three steps - the form
+ * helper (copy your own details), screening answers from your own CV
+ * (Pro), I've applied with a follow-up reminder; and the advert check
+ * (Pro): the closing date and the warning signs.
+ *
  * Check my match is ATS Engine's own Add a job (Job Analysis): the job is
  * saved to the candidate's account, analysed, scored against their CVs
  * and put in their Application Tracker - exactly as if they had pasted it
@@ -21,6 +27,7 @@ import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { summarise, insightSummary, fullFit, INSIGHT_PITCH, EVIDENCE, DOC_DONE } from './core/match.js';
 import { STATUS, MOVE, statusLabel } from './core/tracker.js';
+import { dayLabel, relative, seenBefore, journey, FOLLOW_UP, followUpDays, closingBadge, SIGN, APPLY_PRO } from './core/apply.js';
 
 const app = document.getElementById('app');
 const who = document.getElementById('who');
@@ -91,7 +98,91 @@ function homeScreen(message) {
         ? h('p', { class: 'for', text: `Your Master CV: version ${myCv.version_number}${myCv.updated_at ? `, saved ${myCv.updated_at.slice(0, 10)}` : ''}.` })
         : null,
     ),
+    h(
+      'div',
+      { class: 'card tool-card' },
+      h('div', { class: 'tool-head' }, h('span', { class: 'tool-icon', 'aria-hidden': 'true', text: '⧉' }), h('div', {},
+        h('h2', { text: 'Filling in an application form?' }),
+        h('p', { class: 'muted', style: 'margin:0', text: 'Your name, phone, address and links, one click to copy each.' }))),
+      h('button', { class: 'btn secondary', type: 'button', style: 'margin-top:10px', text: 'Open the form helper', onclick: () => formHelperScreen() }),
+    ),
   );
+}
+
+/* ---- The form helper (0.4.0): their own profile's answers, ready to copy ---- */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const t = h('textarea', { style: 'position:fixed;opacity:0' });
+    t.value = text;
+    document.body.append(t);
+    t.select();
+    const ok = document.execCommand('copy');
+    t.remove();
+    return ok;
+  }
+}
+
+function copyButton(text, label = 'Copy') {
+  const btn = h('button', { class: 'copy-btn', type: 'button', text: label, 'aria-label': `${label}: ${text.slice(0, 40)}` });
+  btn.addEventListener('click', async () => {
+    const ok = await copyText(text);
+    btn.textContent = ok ? '✓ Copied' : 'Press Ctrl+C';
+    btn.classList.toggle('done', ok);
+    setTimeout(() => {
+      btn.textContent = label;
+      btn.classList.remove('done');
+    }, 1600);
+  });
+  return btn;
+}
+
+const GROUPS = [['about', 'About you'], ['work', 'Work'], ['links', 'Links']];
+
+async function formPanel(box) {
+  fill(box, h('p', { class: 'muted', text: 'Getting your details…' }));
+  let res;
+  try {
+    res = await api.formAnswers();
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    if (err.status === 402) return planScreen(err.message);
+    return fill(box, notice('bad', err.message));
+  }
+  const answers = res.answers || [];
+  fill(
+    box,
+    ...GROUPS.map(([key, title]) => {
+      const rows = answers.filter((a) => a.group === key);
+      return rows.length
+        ? h('div', { class: 'form-group' }, h('span', { class: 'form-group-title', text: title }),
+            h('ul', { class: 'answers' }, rows.map((a) => h('li', {},
+              h('div', { class: 'answer-text' }, h('span', { class: 'answer-label', text: a.label }), h('span', { class: 'answer-value', text: a.value })),
+              copyButton(a.value)))))
+        : null;
+    }),
+    (res.missing || []).length
+      ? h('div', { class: 'missing' },
+          h('span', { text: `Not in your profile yet: ${res.missing.join(', ')}.` }),
+          h('button', { class: 'link', type: 'button', text: 'Add them once in your profile →', onclick: () => open(to.route(res.profile_path || '/candidate')) }))
+      : null,
+    h('p', { class: 'for', text: 'Only what your ATS Engine profile says - nothing is typed into the form for you, so you check every field.' }),
+  );
+}
+
+function formHelperScreen() {
+  const box = h('div');
+  show(
+    h('div', { class: 'card' },
+      h('h1', { text: 'Your form helper' }),
+      h('p', { class: 'muted', text: 'Click Copy, then paste into the form (Ctrl+V).' }),
+      box,
+      h('button', { class: 'btn secondary', type: 'button', style: 'margin-top:12px', text: 'Back', onclick: () => homeScreen() }),
+    ),
+  );
+  formPanel(box);
 }
 
 async function capture() {
@@ -189,13 +280,14 @@ function resultScreen(job, opts = {}) {
 
   const tailorFirst = s.next.kind === 'tailor';
   const canTailor = fit?.meets_minimum || fit?.tailoring_can_meet_minimum;
-  const tracker = id ? h('div', { class: 'card' }, h('p', { class: 'muted', text: 'Checking your Application Tracker…' })) : null;
-  if (tracker) loadTracker(tracker, id);
+  const tracker = id ? applyCard(id) : null;
+  const advert = id && jobInsight ? h('div', { class: 'card pro-card advert-card' }, h('p', { class: 'muted', text: 'Checking the advert…' })) : null;
+  if (advert) loadAdvert(advert, id);
   const insight = id ? (jobInsight ? h('div', { class: 'card pro-card' }, h('p', { class: 'muted', text: 'Job Insight is reading this job against your CV…' })) : proTeaser()) : null;
   if (id && jobInsight) loadInsight(insight, id);
 
   show(
-    opts.known ? notice('ok', 'This job is already in your ATS Engine - here is your fit.') : null,
+    opts.known ? h('div', { class: 'seen-banner', 'data-seen': '' }, h('span', { class: 'seen-tag', text: 'SEEN BEFORE' }), h('span', { text: 'This job is already in your ATS Engine - here is your fit, and where your application is.' })) : null,
     h(
       'div',
       { class: 'card' },
@@ -225,8 +317,9 @@ function resultScreen(job, opts = {}) {
       s.requirements.length > 8 ? h('p', { class: 'muted', style: 'margin-top:6px', text: `and ${s.requirements.length - 8} more in the full analysis.` }) : null,
       s.cv ? h('p', { class: 'muted', style: 'margin-top:10px', text: `Matched against ${s.cv}` }) : null,
     ),
-    insight,
+    advert,
     tracker,
+    insight,
     h(
       'div',
       { class: 'card' },
@@ -381,30 +474,163 @@ function proTeaser(message) {
     { class: 'card pro-card' },
     h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Know if this job is worth your evening' })),
     h('p', { style: 'margin-top:8px', text: message || 'Job Insight comes with Job Seeker Pro - and it is free in the 14-day trial. On every job you look at:' }),
-    h('ul', { class: 'tips pro-pitch' }, INSIGHT_PITCH.map((t) => h('li', { text: t }))),
+    h('ul', { class: 'tips pro-pitch' }, [...INSIGHT_PITCH, ...APPLY_PRO].map((t) => h('li', { text: t }))),
     h('button', { class: 'btn gold', type: 'button', text: 'Upgrade to Job Seeker Pro', onclick: () => open(to.subscription()) }),
     h('p', { class: 'for', text: 'Everything you have now stays exactly as it is.' }),
   );
 }
 
-/* Where this job is in the Application Tracker, and the moves ATS Engine allows from there. */
-async function loadTracker(card, jobId) {
+/*
+ * Apply for this job (0.4.0) - three steps, the easiest way through:
+ *   1. Fill in the form: their own details, one click to copy each.
+ *   2. Screening questions (Job Seeker Pro): answered from their own CV.
+ *   3. Tell us you've applied: the tracker move, and when to follow up.
+ * Above the steps, the application's journey - checked, applied, follow
+ * up - and "seen before" when it was checked on an earlier day.
+ */
+function applyCard(jobId) {
+  const head = h('div', { class: 'apply-head' }, h('h2', { text: 'Apply for this job' }));
+  const path = h('div', { class: 'journey-slot' });
+  const tracker = h('div', { class: 'tracker-slot' }, h('p', { class: 'muted', text: 'Checking your Application Tracker…' }));
+  const form = h('div', { class: 'step-panel', hidden: true });
+  let formLoaded = false;
+  const formBtn = h('button', { class: 'btn-mini', type: 'button', text: 'Show my answers', 'aria-expanded': 'false' });
+  formBtn.addEventListener('click', () => {
+    const opening = form.hidden;
+    form.hidden = !opening;
+    formBtn.textContent = opening ? 'Hide my answers' : 'Show my answers';
+    formBtn.setAttribute('aria-expanded', String(opening));
+    if (opening && !formLoaded) {
+      formLoaded = true;
+      formPanel(form);
+    }
+  });
+
+  const card = h(
+    'div',
+    { class: 'card apply-card' },
+    head,
+    path,
+    h('ol', { class: 'apply-steps' },
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '1' }), h('div', { class: 'step-body' },
+        h('h3', { text: 'Fill in the form' }),
+        h('p', { class: 'muted', text: 'Your details from your profile - click to copy, paste into the form.' }),
+        formBtn, form)),
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '2' }), h('div', { class: 'step-body' }, ...screeningStep(jobId))),
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '3' }), h('div', { class: 'step-body' },
+        h('h3', { text: 'Tell us you’ve applied' }),
+        tracker)),
+    ),
+    h('button', { class: 'link', type: 'button', style: 'margin-top:10px', text: 'Open Application Tracker', onclick: () => open(to.applications()) }),
+  );
+  loadTracker(tracker, jobId, (a) => {
+    fill(path, journeyStrip(a));
+    head.querySelector('.seen-tag')?.remove();
+    if (seenBefore(a)) head.append(h('span', { class: 'seen-tag', text: `SEEN ${dayLabel(a.checked_on).toUpperCase()}` }));
+  });
+  return card;
+}
+
+function journeyStrip(a) {
+  return h('ol', { class: 'journey', 'aria-label': 'Your application' }, journey(a).map((st) =>
+    h('li', { class: `jstep ${st.state}` }, h('span', { class: 'jdot', 'aria-hidden': 'true', text: st.state === 'done' ? '✓' : '' }),
+      h('span', { class: 'jlabel', text: st.label }), st.when ? h('span', { class: 'jwhen', text: st.when }) : null)));
+}
+
+/* Step 2: a screening question answered from their own record - Job Seeker Pro. */
+function screeningStep(jobId) {
+  if (!jobInsight) {
+    return [
+      h('h3', {}, 'Screening questions ', h('span', { class: 'pro-tag', text: 'PRO' })),
+      h('p', { class: 'muted', text: '“Tell us about a time you…” - answered from your own CV, never made up. With Job Seeker Pro, free in the 14-day trial.' }),
+      h('button', { class: 'btn-mini gold-mini', type: 'button', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) }),
+    ];
+  }
+  const q = h('textarea', { class: 'screen-q', rows: '3', placeholder: 'Paste the question from the form, or highlight it on the page…', 'aria-label': 'The screening question' });
+  const out = h('div', { class: 'screen-out', 'aria-live': 'polite' });
+  const write = h('button', { class: 'btn-mini', type: 'button', text: 'Write my answer' });
+  const grab = h('button', { class: 'btn-mini ghost-mini', type: 'button', text: 'Use the text I highlighted' });
+  grab.addEventListener('click', async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => String(window.getSelection?.() || '').trim() });
+      if (r?.result) q.value = r.result.slice(0, 1000);
+      else fill(out, notice('warn', 'Highlight the question on the page first, then press this again.'));
+    } catch {
+      fill(out, notice('warn', 'This page cannot be read - paste the question instead.'));
+    }
+  });
+  write.addEventListener('click', async () => {
+    const question = q.value.trim();
+    if (question.length < 8) return fill(out, notice('warn', 'Paste the whole question first.'));
+    write.disabled = true;
+    write.textContent = 'Writing…';
+    fill(out, h('div', { class: 'bar' }, h('span')));
+    try {
+      const res = await api.screeningAnswer(jobId, question);
+      if (res.answer) {
+        fill(out, h('div', { class: 'screen-answer' },
+          h('p', { class: 'screen-text', text: res.answer }),
+          h('div', { class: 'screen-foot' },
+            h('span', { class: 'muted', text: `From ${res.sources} thing${res.sources === 1 ? '' : 's'} on your record. Read it through and make it yours.` }),
+            copyButton(res.answer, 'Copy answer'))));
+      } else {
+        fill(out, h('div', { class: 'cover warn' }, h('strong', { text: 'Not enough on your record for this one' }), h('span', { text: res.needs }),
+          h('button', { class: 'btn-mini', type: 'button', text: 'Add a story in the Interview Centre →', onclick: () => open(to.route('/interviews')) })));
+      }
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402 && err.code === 'plan_feature_unavailable') return fill(out, notice('warn', err.message));
+      fill(out, notice('bad', err.message));
+    } finally {
+      write.disabled = false;
+      write.textContent = 'Write my answer';
+    }
+  });
+  return [
+    h('h3', {}, 'Screening questions ', h('span', { class: 'pro-tag', text: 'PRO' })),
+    h('p', { class: 'muted', text: 'Answered from your own CV and STAR stories - nothing invented.' }),
+    q,
+    h('div', { class: 'screen-acts' }, write, grab),
+    out,
+  ];
+}
+
+/* Step 3: where it is in the tracker, the moves ATS Engine allows, and the follow-up day. */
+async function loadTracker(card, jobId, onApplication = () => {}) {
   const render = (a, message) => {
+    onApplication(a);
     const st = STATUS[a.status] || { tone: 'warn' };
+    const chosen = followUpDays(a);
     fill(
       card,
-      h('h2', { text: 'Application Tracker' }),
-      h('p', {}, 'This job is ', h('span', { class: `pill ${st.tone}`, text: statusLabel(a.status) }), a.applied_on ? ` · applied ${a.applied_on}` : ''),
+      h('p', { class: 'tracker-line' }, 'In your tracker: ', h('span', { class: `pill ${st.tone}`, text: statusLabel(a.status) }), a.applied_on ? ` · applied ${dayLabel(a.applied_on)}` : ''),
       message ? notice('ok', message) : null,
+      a.status === 'applied' && a.follow_up_on
+        ? h('div', { class: 'follow' },
+            h('span', { class: 'follow-q', text: 'Remind me to follow up after' }),
+            h('div', { class: 'seg', role: 'group', 'aria-label': 'Follow-up reminder' }, FOLLOW_UP.map((f) => h('button', {
+              class: `seg-btn${chosen === f.days ? ' on' : ''}`, type: 'button', 'aria-pressed': String(chosen === f.days), text: f.label,
+              onclick: async () => {
+                try {
+                  render(await api.followUp(jobId, f.days), null);
+                } catch (err) {
+                  if (err.status === 401) return connectScreen(err.message);
+                  card.append(notice('bad', err.message));
+                }
+              },
+            }))),
+            h('span', { class: 'follow-when', text: `ATS Engine will remind you on ${dayLabel(a.follow_up_on)} (${relative(a.follow_up_on)}).` }))
+        : null,
       ...(a.next || []).map((n) =>
         h('button', {
-          class: `btn ${n === 'applied' ? '' : 'secondary'}`.trim(),
+          class: `btn ${n === 'applied' ? 'green' : 'secondary'}`.trim(),
           type: 'button',
           text: MOVE[n] || n,
           onclick: async () => {
             try {
               const moved = await api.setStatus(jobId, n);
-              render(moved, n === 'applied' ? `Marked as applied (${moved.applied_on}).` : `Moved to ${statusLabel(moved.status)}.`);
+              render(moved, n === 'applied' ? `Marked as applied on ${dayLabel(moved.applied_on)}. Good luck!` : `Moved to ${statusLabel(moved.status)}.`);
             } catch (err) {
               if (err.status === 401) return connectScreen(err.message);
               if (err.status === 402) return planScreen(err.message);
@@ -414,7 +640,6 @@ async function loadTracker(card, jobId) {
           },
         }),
       ),
-      h('button', { class: 'link', type: 'button', style: 'margin-top:8px', text: 'Open Application Tracker', onclick: () => open(to.applications()) }),
     );
   };
   try {
@@ -422,12 +647,41 @@ async function loadTracker(card, jobId) {
   } catch (err) {
     if (err.status === 401) return connectScreen(err.message);
     if (err.status === 402) return planScreen(err.message);
-    card.replaceChildren(
-      h('h2', { text: 'Application Tracker' }),
-      h('p', { class: 'muted', text: err.status === 404 ? 'This job is not in your Application Tracker yet.' : err.message }),
-      h('button', { class: 'link', type: 'button', text: 'Open Application Tracker', onclick: () => open(to.applications()) }),
-    );
+    fill(card, h('p', { class: 'muted', text: err.status === 404 ? 'This job is not in your Application Tracker yet.' : err.message }));
   }
+}
+
+/* The advert check (0.4.0, Job Seeker Pro and its trial): the closing date and the warning signs. */
+async function loadAdvert(card, jobId) {
+  let res;
+  try {
+    res = await api.advertCheck(jobId);
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    if (err.status === 402) return card.remove();
+    return fill(card, h('h2', { text: 'Advert check' }), notice('bad', err.message));
+  }
+  const badge = closingBadge(res.closing);
+  const real = (res.signs || []).filter((x) => x.level !== 'info');
+  const info = (res.signs || []).filter((x) => x.level === 'info');
+  fill(
+    card,
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: 'Advert check' })),
+    badge
+      ? h('div', { class: `closing ${badge.tone}` },
+          h('div', { class: 'cal', 'aria-hidden': 'true' }, h('span', { class: 'cal-m', text: badge.month }), h('span', { class: 'cal-d', text: String(badge.day) })),
+          h('div', {}, h('strong', { text: badge.text }), h('span', { text: badge.sub }),
+            res.reminder ? h('span', { class: 'closing-rem', text: '🔔 We’ll remind you two days before, if you haven’t applied.' }) : null))
+      : h('div', { class: 'closing none' }, h('div', { class: 'cal', 'aria-hidden': 'true' }, h('span', { class: 'cal-m', text: 'DATE' }), h('span', { class: 'cal-d', text: '?' })),
+          h('div', {}, h('strong', { text: 'No closing date given' }), h('span', { text: 'Adverts like this can close without warning - apply sooner rather than later.' }))),
+    real.length
+      ? h('ul', { class: 'signs' }, real.map((x) => h('li', { class: `sign ${SIGN[x.level].tone}` },
+          h('span', { class: 'sign-ico', 'aria-hidden': 'true', text: SIGN[x.level].symbol }),
+          h('div', {}, h('strong', { text: x.title }), h('span', { text: x.why }), x.found ? h('q', { class: 'sign-found', text: x.found }) : null))))
+      : h('div', { class: 'signs-clear' }, h('span', { class: 'sign-ico', 'aria-hidden': 'true', text: '✓' }), h('span', { text: 'No warning signs found in this advert.' })),
+    ...info.map((x) => h('p', { class: 'sign-info', text: `${x.title} - ${x.why}` })),
+    h('p', { class: 'for', text: 'Read from the advert’s own words. Things to check, not a verdict.' }),
+  );
 }
 
 /* Free accounts: the extension is part of the paid plans and the trial. */
