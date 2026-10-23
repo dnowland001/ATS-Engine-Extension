@@ -441,3 +441,31 @@ test('Job Seeker: screening answers locked with the Pro pitch, no advert check; 
   await expect(popup.getByText(/Screening questions answered from your own CV/)).toBeVisible(); // in the Pro pitch
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('the job stays put until it is marked applied (0.4.1)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55': [200, JOB().data],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'POST /extension/seeker/jobs/55/status': TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], day(0)),
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await expect(popup.getByRole('heading', { name: 'Apply for this job' })).toBeVisible();
+  await popup.close();
+
+  // Opened again (the panel was closed): straight back to the same job.
+  const again = await x.popup();
+  await expect(again.getByText(/Kept here while you apply/)).toBeVisible();
+  await expect(again.getByRole('heading', { name: 'Apply for this job' })).toBeVisible();
+  await again.getByRole('button', { name: "I've applied" }).click();
+  await expect(again.getByText(/Marked as applied/)).toBeVisible();
+  await again.close();
+
+  // Applied: let go - the next open is the home screen.
+  const third = await x.popup();
+  await expect(third.getByRole('heading', { name: 'Check this job' })).toBeVisible();
+  await Promise.all([job.close(), third.close()]);
+});

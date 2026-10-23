@@ -60,6 +60,7 @@ export async function launch(app, jobPageHtml) {
       });
     },
     async connectAs(user, role) {
+      await sw.evaluate(() => chrome.storage.local.remove('atsEnginePinnedJob')); // each test starts with no job pinned
       await sw.evaluate((c) => chrome.storage.local.set({ atsEngineConnection: c }), {
         token: 'ext-token', role, expires_at: new Date(Date.now() + 86400000).toISOString(), user,
       });

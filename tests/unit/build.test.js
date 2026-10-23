@@ -44,7 +44,10 @@ describe('build', () => {
     const out = mkdtempSync(join(tmpdir(), 'ext-'));
     const { manifest } = build({ app: 'seeker', out });
     expect(manifest.name).toBe('ATS Engine - Seekers');
-    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
+    // 0.4.1: a side panel, which stays open while they apply ("sidePanel" shows no warning).
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
+    expect(manifest.side_panel).toEqual({ default_path: 'popup.html' });
+    expect(manifest.action.default_popup).toBeUndefined();
     expect(manifest.content_scripts).toBeUndefined();
     const { createHash } = await import('node:crypto');
     const hex = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32);

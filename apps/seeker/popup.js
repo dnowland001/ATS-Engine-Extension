@@ -190,9 +190,17 @@ async function capture() {
   let page;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https?:/.test(tab.url || '')) throw new Error('Open a job advert in this tab first.');
-    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPage });
-    page = result?.result;
+    // In the side panel (0.4.1) a tab's address is only visible once the
+    // extension may read that page, so an unknown address is not refused here.
+    if (!tab?.id || (tab.url && !/^https?:/.test(tab.url))) throw new Error('Open a job advert in this tab first.');
+    try {
+      const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPage });
+      page = result?.result;
+    } catch {
+      // Chrome lets the extension read only the page it was opened on. On
+      // another tab, one click on the icon gives it that page too.
+      throw new Error('ATS Engine needs your go-ahead to read this page: click the ATS Engine icon in your toolbar once, then press Check this job again.');
+    }
     if (!page?.html) throw new Error('This page could not be read.');
   } catch (err) {
     return homeScreen(err.message || 'This page could not be read.');
@@ -261,7 +269,40 @@ function reviewScreen(res, page) {
   );
 }
 
+/*
+ * The job stays put (0.4.1, Dennis: "the job needs to stay static until
+ * the user says it is submitted or cancelled"). Whatever job is on screen
+ * is pinned; opening the panel again - even after closing the browser -
+ * goes straight back to it. It is let go only when they mark it applied
+ * or no longer interested, or press Check another job.
+ */
+const PIN = 'atsEnginePinnedJob';
+const pin = (job) => chrome.storage?.local?.set?.({ [PIN]: { id: job.id, title: job.title || '', company: job.company || '' } }).catch?.(() => {});
+const unpin = () => chrome.storage?.local?.remove?.(PIN).catch?.(() => {});
+const pinned = async () => {
+  try {
+    return (await chrome.storage.local.get(PIN))?.[PIN] || null;
+  } catch {
+    return null;
+  }
+};
+const LET_GO = ['applied', 'withdrawn', 'rejected'];
+
+async function backTo(job) {
+  busy(`Opening ${job.title || 'your job'}…`);
+  try {
+    const fresh = await api.seekerJob(job.id);
+    resultScreen(fresh?.data || fresh, { pinned: true });
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    await unpin(); // gone from ATS Engine - nothing to come back to
+    homeScreen(err.status === 404 ? null : err.message);
+  }
+}
+
 function resultScreen(job, opts = {}) {
+  const app_ = job?.application;
+  if (job?.id && !LET_GO.includes(app_?.status)) pin(job);
   const fit = job?.candidate_fit || null;
   const full = fullFit(fit);
   const s = summarise(fit, { cvCount, application: job?.application });
@@ -287,6 +328,7 @@ function resultScreen(job, opts = {}) {
   if (id && jobInsight) loadInsight(insight, id);
 
   show(
+    opts.pinned ? h('div', { class: 'pin-note' }, h('span', { 'aria-hidden': 'true', text: '📌' }), h('span', { text: 'Kept here while you apply. It goes when you mark it applied or not interested, or check another job.' })) : null,
     opts.known ? h('div', { class: 'seen-banner', 'data-seen': '' }, h('span', { class: 'seen-tag', text: 'SEEN BEFORE' }), h('span', { text: 'This job is already in your ATS Engine - here is your fit, and where your application is.' })) : null,
     h(
       'div',
@@ -327,7 +369,7 @@ function resultScreen(job, opts = {}) {
       id && (tailorFirst || canTailor) ? tailorBlock(id, tailorFirst) : null,
       id ? h('button', { class: `btn${tailorFirst ? ' secondary' : ''}`, type: 'button', text: 'View full analysis', onclick: () => open(to.jobAnalysis(id)) }) : null,
       opts.recheck ? h('button', { class: 'btn secondary', type: 'button', text: 'Check it again from this page', onclick: opts.recheck }) : null,
-      h('button', { class: 'btn secondary', type: 'button', text: 'Check another job', onclick: start }),
+      h('button', { class: 'btn secondary', type: 'button', text: 'Check another job', onclick: async () => { await unpin(); start(); } }),
     ),
   );
 }
@@ -630,6 +672,7 @@ async function loadTracker(card, jobId, onApplication = () => {}) {
           onclick: async () => {
             try {
               const moved = await api.setStatus(jobId, n);
+              if (LET_GO.includes(moved.status)) unpin();
               render(moved, n === 'applied' ? `Marked as applied on ${dayLabel(moved.applied_on)}. Good luck!` : `Moved to ${statusLabel(moved.status)}.`);
             } catch (err) {
               if (err.status === 401) return connectScreen(err.message);
@@ -721,6 +764,8 @@ async function start() {
     candidateId = me.candidate_id || null;
     canTailorCv = me.documents === true;
     showWho({ ...connection, user: me.user });
+    const keep = await pinned();
+    if (keep?.id) return backTo(keep);
     homeScreen();
   } catch (err) {
     if (err.status === 401) connectScreen(err.message);
