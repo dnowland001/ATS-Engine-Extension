@@ -44,7 +44,10 @@ npm run zip                # also a store zip of each in dist/
 
    ATS Engine accepts them because the backend `.env` lists both:
    `EXTENSION_ALLOWED_ORIGINS=chrome-extension://fmgfdjfhhjdkciahjdlgiefgelffglml,chrome-extension://fbpbkfikiogmljdnojhnhgfobinecgbm`
-   (add the Chrome Web Store and Edge Add-ons IDs once published).
+   and the Chrome Web Store IDs (published 23 Oct 2026):
+   - Recruiters: **`midipfjdnmlpfcdhggcgeelcpmoocigi`** - https://chromewebstore.google.com/detail/ats-engine-recruiters/midipfjdnmlpfcdhggcgeelcpmoocigi
+   - Seekers: **`ffgpmgfpnieeabdhknepiikackpendmk`** - https://chromewebstore.google.com/detail/ats-engine-seekers/ffgpmgfpnieeabdhknepiikackpendmk
+   Each store ID is also in the backend's `config/extension.php` roles.
 
 ### Job seeker flow
 
