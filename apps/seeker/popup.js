@@ -955,6 +955,8 @@ async function start() {
 }
 
 document.getElementById('open-app').addEventListener('click', () => open(CONFIG.appBase));
+// Help and the training films for the panel (24 Oct 2026): the app's own help page for the extension.
+document.getElementById('open-help').addEventListener('click', () => open(to.route('/help/extension-connect')));
 document.getElementById('disconnect').addEventListener('click', async () => {
   try {
     await api.disconnect();
