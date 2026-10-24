@@ -245,7 +245,7 @@ test('Job Seeker Pro: Job Insight - verdict, next step, strengths, gaps to fix, 
   await popup.getByRole('button', { name: 'Check this job' }).click();
   await popup.getByRole('button', { name: 'Check my match' }).click();
 
-  const card = popup.locator('.pro-card:not(.advert-card)');
+  const card = popup.locator('.pro-card:not(.advert-card):not(.company-card)');
   await expect(card.getByRole('heading', { name: 'Job Insight' })).toBeVisible();
   await expect(card).toContainText('A good fit: 78% against your 70% minimum.');
   await expect(card.locator('.next-step')).toContainText('Next: Tailor your CV, then apply');
@@ -279,7 +279,7 @@ test('Job Seeker: Job Insight is sold, with the upgrade one click away', async (
   const card = popup.locator('.pro-card');
   await expect(card.getByRole('heading', { name: 'Know if this job is worth your evening' })).toBeVisible();
   await expect(card).toContainText('free in the 14-day trial');
-  await expect(card.locator('.pro-pitch li')).toHaveCount(8); // Job Insight's five and applying's three
+  await expect(card.locator('.pro-pitch li')).toHaveCount(9); // Job Insight's five, applying's three and the company snapshot
   expect(x.calls.some((c) => c.path.endsWith('/insight'))).toBe(false); // never asked for
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1300 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-teaser.png`, fullPage: true });
   await card.getByRole('button', { name: 'Upgrade to Job Seeker Pro' }).click();
@@ -409,6 +409,7 @@ test('seen before, Pro: the journey, advert check, screening answer, form helper
   await expect(popup.getByText('At Acme I led agile delivery for two payments teams.')).toBeVisible();
   await expect(popup.getByText(/From 2 things on your record/)).toBeVisible();
 
+  if (process.env.SHOTS) await popup.locator('.apply-card').screenshot({ path: `${process.env.SHOTS}/seeker-apply-card.png` }), await popup.locator('.advert-card').screenshot({ path: `${process.env.SHOTS}/seeker-advert-card.png` });
   // Form helper inside step 1.
   await popup.getByRole('button', { name: 'Show my answers' }).click();
   await expect(popup.locator('.answers li')).toHaveCount(3);
@@ -468,4 +469,80 @@ test('the job stays put until it is marked applied (0.4.1)', async () => {
   const third = await x.popup();
   await expect(third.getByRole('heading', { name: 'Check this job' })).toBeVisible();
   await Promise.all([job.close(), third.close()]);
+});
+
+/* ---- 0.5.0: after applying ------------------------------------------------ */
+test('cover letter: written here, then downloaded; one already made downloads straight away', async () => {
+  let made = null;
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME, 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+    'POST /extension/seeker/documents/generate': (req) => ((made = req.postDataJSON()), [202, { data: { id: 901, status: 'pending' } }]),
+    'GET /extension/seeker/documents/901': [200, { data: { id: 901, status: 'evidence_checked' } }],
+    'GET /extension/seeker/documents/901/download': [200, { file: 'docx' }],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await expect(popup.getByRole('heading', { name: 'Cover letter' })).toBeVisible();
+  await popup.getByRole('button', { name: 'Write my cover letter' }).click();
+  await expect(popup.getByText(/Writing your cover letter/)).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Download my cover letter' })).toBeVisible({ timeout: 10000 });
+  expect(made).toEqual({ candidate_id: 7, job_posting_id: 55, type: 'cover_letter' });
+  expect(x.calls.some((c) => c.path === '/extension/seeker/documents/901/download')).toBe(true);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('interview prep appears once there is an interview: questions, then answers from the CV', async () => {
+  await x.connectAs(USER, 'seeker');
+  const Q = (asked) => ({ answers: [
+    { id: 1, question: 'Tell us about leading agile delivery.', answer: asked ? 'At Acme I led two payments teams.' : null, needs: null, asked },
+    { id: 2, question: 'How do you handle stakeholders?', answer: null, needs: asked ? 'Add a STAR story about stakeholders.' : null, asked },
+  ] });
+  await x.mockApi({
+    'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK('applied', ['interviewing', 'rejected', 'withdrawn'], day(-5)),
+    'POST /extension/seeker/jobs/55/status': TRACK('interviewing', ['offer', 'rejected', 'withdrawn'], day(-5)),
+    'POST /extension/seeker/jobs/55/interview-prep/questions': [200, Q(false)],
+    'POST /extension/seeker/jobs/55/interview-prep/answers': [200, Q(true)],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await expect(popup.getByText('Prepare for the interview')).toHaveCount(0);
+  await popup.getByRole('button', { name: 'Got an interview' }).click();
+  await popup.getByRole('button', { name: 'Show the likely questions' }).click();
+  await expect(popup.getByText('Tell us about leading agile delivery.')).toBeVisible();
+  await popup.getByRole('button', { name: 'Write my answers from my CV' }).click();
+  await expect(popup.getByText('At Acme I led two payments teams.')).toBeVisible();
+  await expect(popup.getByText('Add a STAR story about stakeholders.')).toBeVisible();
+  if (process.env.SHOTS) await popup.locator('.prep').screenshot({ path: `${process.env.SHOTS}/seeker-prep.png` });
+  await popup.getByRole('button', { name: 'Open the Interview Centre' }).click();
+  expect(await popup.evaluate(() => window.__opened)).toEqual(['https://app.ats-engine.com/interviews?job=55']);
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('company snapshot (Pro): asked for, researched, shown as unverified', async () => {
+  await x.connectAs(USER, 'seeker');
+  let state = 'not_requested';
+  await x.mockApi({
+    'GET /extension/me': PRO_ME2, 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(), 'GET /extension/seeker/jobs/55/insight': INSIGHT2,
+    'GET /extension/seeker/jobs/55/company': () => [200, state === 'ready'
+      ? { status: 'ready', company: 'Acme Bank', overview: 'A UK bank. Publicly available detail is limited.', culture: ['Regulated, process-led'], recent: [], questions: ['How do teams plan releases?'], verified: false }
+      : { status: state }],
+    'POST /extension/seeker/jobs/55/company': () => ((state = 'ready'), [202, { status: 'pending', company: 'Acme Bank' }]),
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  const card = popup.locator('.company-card');
+  await expect(card.getByRole('heading', { name: 'About Acme Bank' })).toBeVisible();
+  await card.getByRole('button', { name: 'Get the company snapshot' }).click();
+  await expect(card.getByText('A UK bank. Publicly available detail is limited.')).toBeVisible({ timeout: 10000 });
+  await expect(card.getByText('How do teams plan releases?')).toBeVisible();
+  await expect(card.getByText(/not verified/)).toBeVisible();
+  if (process.env.SHOTS) await card.screenshot({ path: `${process.env.SHOTS}/seeker-company.png` }), await popup.locator('.apply-card').screenshot({ path: `${process.env.SHOTS}/seeker-apply4.png` });
+  await Promise.all([job.close(), popup.close()]);
 });

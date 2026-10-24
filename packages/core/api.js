@@ -109,7 +109,7 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     setStatus: (jobId, status) => request(`/extension/seeker/jobs/${jobId}/status`, { method: 'POST', body: { status } }),
     // The full fit (22 Oct 2026): a job already in ATS Engine, and the tailored CV made and downloaded here.
     seekerJob: (jobId) => request(`/extension/seeker/jobs/${jobId}`),
-    generateCv: (candidateId, jobId) => request('/extension/seeker/documents/generate', { method: 'POST', body: { candidate_id: candidateId, job_posting_id: jobId, type: 'tailored_cv' } }),
+    generateCv: (candidateId, jobId, type = 'tailored_cv') => request('/extension/seeker/documents/generate', { method: 'POST', body: { candidate_id: candidateId, job_posting_id: jobId, type } }),
     document: (id) => request(`/extension/seeker/documents/${id}`),
     downloadDocument: (id) => request(`/extension/seeker/documents/${id}/download`, { asBlob: true }),
     // Job Insight (E3): Job Seeker Pro and its trial.
@@ -119,6 +119,11 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     formAnswers: () => request('/extension/seeker/form-answers'),
     // Job Seeker Pro and its trial: the advert check and screening answers.
     advertCheck: (jobId) => request(`/extension/seeker/jobs/${jobId}/advert-check`, { method: 'POST', body: {} }),
+    // After applying (24 Oct 2026): interview prep for every paid plan, the company snapshot for Pro.
+    prepQuestions: (jobId) => request(`/extension/seeker/jobs/${jobId}/interview-prep/questions`, { method: 'POST', body: {} }),
+    prepAnswers: (jobId) => request(`/extension/seeker/jobs/${jobId}/interview-prep/answers`, { method: 'POST', body: {} }),
+    company: (jobId) => request(`/extension/seeker/jobs/${jobId}/company`),
+    companyRequest: (jobId) => request(`/extension/seeker/jobs/${jobId}/company`, { method: 'POST', body: {} }),
     screeningAnswer: (jobId, question) => request(`/extension/seeker/jobs/${jobId}/screening-answer`, { method: 'POST', body: { question } }),
   };
 }

@@ -102,4 +102,5 @@ export const APPLY_PRO = [
   'Screening questions answered from your own CV - nothing made up',
   'The closing date, and a reminder before it passes',
   'Warning signs in the advert: fees, bank details, WhatsApp-only contact',
+  'A company snapshot: what they do, what it is likely to be like, good questions to ask',
 ];

@@ -321,9 +321,11 @@ function resultScreen(job, opts = {}) {
 
   const tailorFirst = s.next.kind === 'tailor';
   const canTailor = fit?.meets_minimum || fit?.tailoring_can_meet_minimum;
-  const tracker = id ? applyCard(id) : null;
+  const tracker = id ? applyCard(id, job) : null;
   const advert = id && jobInsight ? h('div', { class: 'card pro-card advert-card' }, h('p', { class: 'muted', text: 'Checking the advert…' })) : null;
   if (advert) loadAdvert(advert, id);
+  const company = id && jobInsight ? h('div', { class: 'card pro-card company-card' }, h('p', { class: 'muted', text: 'Looking for the company snapshot…' })) : null;
+  if (company) loadCompany(company, id, job?.company);
   const insight = id ? (jobInsight ? h('div', { class: 'card pro-card' }, h('p', { class: 'muted', text: 'Job Insight is reading this job against your CV…' })) : proTeaser()) : null;
   if (id && jobInsight) loadInsight(insight, id);
 
@@ -361,6 +363,7 @@ function resultScreen(job, opts = {}) {
     ),
     advert,
     tracker,
+    company,
     insight,
     h(
       'div',
@@ -530,7 +533,7 @@ function proTeaser(message) {
  * Above the steps, the application's journey - checked, applied, follow
  * up - and "seen before" when it was checked on an earlier day.
  */
-function applyCard(jobId) {
+function applyCard(jobId, job = {}) {
   const head = h('div', { class: 'apply-head' }, h('h2', { text: 'Apply for this job' }));
   const path = h('div', { class: 'journey-slot' });
   const tracker = h('div', { class: 'tracker-slot' }, h('p', { class: 'muted', text: 'Checking your Application Tracker…' }));
@@ -558,8 +561,9 @@ function applyCard(jobId) {
         h('h3', { text: 'Fill in the form' }),
         h('p', { class: 'muted', text: 'Your details from your profile - click to copy, paste into the form.' }),
         formBtn, form)),
-      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '2' }), h('div', { class: 'step-body' }, ...screeningStep(jobId))),
-      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '3' }), h('div', { class: 'step-body' },
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '2' }), h('div', { class: 'step-body' }, ...letterStep(job))),
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '3' }), h('div', { class: 'step-body' }, ...screeningStep(jobId))),
+      h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '4' }), h('div', { class: 'step-body' },
         h('h3', { text: 'Tell us you’ve applied' }),
         tracker)),
     ),
@@ -579,7 +583,183 @@ function journeyStrip(a) {
       h('span', { class: 'jlabel', text: st.label }), st.when ? h('span', { class: 'jwhen', text: st.when }) : null)));
 }
 
-/* Step 2: a screening question answered from their own record - Job Seeker Pro. */
+/* Save a generated document the browser can download (the tailored CV, the cover letter). */
+async function saveDocument(docId, fallbackName) {
+  const { blob, filename } = await api.downloadDocument(docId);
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: filename || fallbackName });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/* Wait for a document ATS Engine is writing; resolves with its id once it is ready. */
+async function untilReady(docId) {
+  for (let i = 0; i < 100; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const d = await api.document(docId);
+    const status = (d?.data || d)?.status;
+    if (DOC_DONE.includes(status)) {
+      if (status === 'failed') throw new Error('ATS Engine could not write it this time. Try again, or make it from the job in ATS Engine.');
+      return docId;
+    }
+  }
+  throw new Error('This is taking longer than usual. Open the job in ATS Engine to see when it is ready.');
+}
+
+/*
+ * Step 2 (24 Oct 2026): the cover letter - ATS Engine's own, written for
+ * this job from their CV, on every plan that makes documents. One already
+ * made downloads straight away.
+ */
+function letterStep(job) {
+  const name = `${job.title || 'Cover'}-letter.docx`.replace(/\s+/g, '_');
+  const ready = (job.documents || []).find((d) => d.type === 'cover_letter' && d.is_ready);
+  const box = h('div', { class: 'letter-box' });
+  const download = async (id, btn) => {
+    btn.disabled = true;
+    try {
+      await saveDocument(id, name);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      box.append(notice('bad', err.message));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  const showReady = (id) => {
+    const btn = h('button', { class: 'btn-mini', type: 'button', text: 'Download my cover letter' });
+    btn.addEventListener('click', () => download(id, btn));
+    fill(box, h('p', { class: 'letter-ok', text: '✓ Written for this job from your CV.' }), btn);
+  };
+  const make = async () => {
+    fill(box, h('p', { class: 'muted', text: 'Writing your cover letter - about a minute. You can carry on with the form.' }), h('div', { class: 'bar' }, h('span')));
+    try {
+      const res = await api.generateCv(candidateId, job.id, 'cover_letter');
+      const id = await untilReady((res?.data || res)?.id);
+      showReady(id);
+      await saveDocument(id, name);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      fill(box, notice('bad', err.message), writeBtn());
+    }
+  };
+  const writeBtn = () => h('button', { class: 'btn-mini', type: 'button', text: 'Write my cover letter', onclick: make });
+  if (ready) showReady(ready.id);
+  else if (canTailorCv && candidateId) fill(box, writeBtn());
+  else fill(box, h('p', { class: 'muted', text: 'Cover letters come with Job Seeker and Job Seeker Pro.' }));
+  return [
+    h('h3', { text: 'Cover letter' }),
+    h('p', { class: 'muted', text: 'Written for this job from your own CV - nothing invented. Read it through before you send it.' }),
+    box,
+  ];
+}
+
+/*
+ * Interview prep (24 Oct 2026): once it is at Got an interview, the
+ * likely questions for this job (free, no AI) and answers from their own
+ * CV (on the app's monthly interview-pack allowance).
+ */
+function prepBlock(jobId) {
+  const box = h('div', { class: 'prep-box' });
+  const list = (answers) => paged(answers, 3, (page) => h('ol', { class: 'prep-list' }, page.map((a) => h('li', {},
+    h('strong', { text: a.question }),
+    a.answer ? h('p', { class: 'prep-answer', text: a.answer }) : a.needs ? h('p', { class: 'prep-needs', text: a.needs }) : null))), 'Interview questions');
+  const render = (answers, message) => {
+    const asked = answers.some((a) => a.asked);
+    const write = h('button', { class: 'btn-mini', type: 'button', text: asked ? 'Write the rest from my CV' : 'Write my answers from my CV' });
+    write.addEventListener('click', async () => {
+      write.disabled = true;
+      write.textContent = 'Writing… about a minute';
+      try {
+        const res = await api.prepAnswers(jobId);
+        render(res.answers || [], 'Answers written from your own CV. Read them aloud and make them yours.');
+      } catch (err) {
+        if (err.status === 401) return connectScreen(err.message);
+        write.disabled = false;
+        write.textContent = 'Write my answers from my CV';
+        box.append(notice(err.status === 402 || err.status === 429 ? 'warn' : 'bad', err.message));
+      }
+    });
+    fill(box,
+      message ? notice('ok', message) : null,
+      list(answers),
+      h('div', { class: 'screen-acts' }, answers.every((a) => a.asked) ? null : write,
+        h('button', { class: 'btn-mini ghost-mini', type: 'button', text: 'Open the Interview Centre', onclick: () => open(to.route(`/interviews?job=${jobId}`)) })));
+  };
+  const start = h('button', { class: 'btn-mini', type: 'button', text: 'Show the likely questions' });
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    try {
+      const res = await api.prepQuestions(jobId);
+      render(res.answers || []);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      start.disabled = false;
+      box.append(notice('bad', err.message));
+    }
+  });
+  fill(box, start);
+  return h('div', { class: 'prep' },
+    h('div', { class: 'prep-head' }, h('span', { 'aria-hidden': 'true', text: '🎤' }), h('strong', { text: 'Prepare for the interview' })),
+    h('p', { class: 'muted', text: 'The questions this job is likely to bring up, with answers from your own CV.' }),
+    box);
+}
+
+/* The company snapshot (24 Oct 2026, Job Seeker Pro and its trial): Company Intelligence for this employer. */
+async function loadCompany(card, jobId, name) {
+  const head = () => h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h2', { text: `About ${name || 'the employer'}` }));
+  const render = (c) => {
+    if (c.status === 'ready') {
+      return fill(card, head(),
+        c.overview ? h('p', { style: 'margin-top:8px', text: c.overview }) : null,
+        c.culture?.length ? h('div', {}, h('span', { class: 'form-group-title', text: 'What it is likely to be like' }), h('div', { class: 'chips' }, c.culture.map((t) => h('span', { class: 'chip', text: t })))) : null,
+        c.recent?.length ? h('div', { style: 'margin-top:8px' }, h('span', { class: 'form-group-title', text: 'Worth knowing' }), h('ul', { class: 'tips' }, c.recent.map((t) => h('li', { text: t })))) : null,
+        c.questions?.length ? h('div', { style: 'margin-top:8px' }, h('span', { class: 'form-group-title', text: 'Good questions to ask them' }), h('ul', { class: 'tips' }, c.questions.map((t) => h('li', { text: t })))) : null,
+        h('p', { class: 'for', text: 'Researched by AI and not verified - check anything that matters before you rely on it.' }));
+    }
+    if (c.status === 'pending') {
+      fill(card, head(), h('p', { class: 'muted', style: 'margin-top:8px', text: 'Researching the company - usually under a minute…' }), h('div', { class: 'screen-out' }, h('div', { class: 'bar' }, h('span'))));
+      return;
+    }
+    const go = h('button', { class: 'btn-mini', type: 'button', text: c.status === 'failed' ? 'Try again' : 'Get the company snapshot' });
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      try {
+        render(await api.companyRequest(jobId));
+        poll();
+      } catch (err) {
+        if (err.status === 401) return connectScreen(err.message);
+        go.disabled = false;
+        card.append(notice('bad', err.message));
+      }
+    });
+    fill(card, head(), h('p', { class: 'muted', style: 'margin-top:8px', text: c.status === 'failed' ? 'The snapshot could not be made just now.' : 'What they do, what it is likely to be like, and good questions to ask - before you apply or interview.' }), go);
+  };
+  const poll = async () => {
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const c = await api.company(jobId);
+        if (c.status !== 'pending') return render(c);
+      } catch {
+        return;
+      }
+    }
+  };
+  try {
+    const c = await api.company(jobId);
+    render(c);
+    if (c.status === 'pending') poll();
+  } catch (err) {
+    if (err.status === 401) return connectScreen(err.message);
+    if (err.status === 402) return card.remove();
+    fill(card, head(), notice('bad', err.message));
+  }
+}
+
+/* Step 3: a screening question answered from their own record - Job Seeker Pro. */
 function screeningStep(jobId) {
   if (!jobInsight) {
     return [
@@ -638,7 +818,7 @@ function screeningStep(jobId) {
   ];
 }
 
-/* Step 3: where it is in the tracker, the moves ATS Engine allows, and the follow-up day. */
+/* Step 4: where it is in the tracker, the moves ATS Engine allows, the follow-up day - and interview prep once there is an interview. */
 async function loadTracker(card, jobId, onApplication = () => {}) {
   const render = (a, message) => {
     onApplication(a);
@@ -664,6 +844,7 @@ async function loadTracker(card, jobId, onApplication = () => {}) {
             }))),
             h('span', { class: 'follow-when', text: `ATS Engine will remind you on ${dayLabel(a.follow_up_on)} (${relative(a.follow_up_on)}).` }))
         : null,
+      a.status === 'interviewing' ? prepBlock(jobId) : null,
       ...(a.next || []).map((n) =>
         h('button', {
           class: `btn ${n === 'applied' ? 'green' : 'secondary'}`.trim(),

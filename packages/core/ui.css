@@ -282,3 +282,17 @@ h3 { margin: 0 0 3px; font-size: 14px; font-weight: 700; color: var(--brand-navy
 /* Seekers 0.4.1: a side panel - it fills the panel's width rather than a popup's fixed 380px. */
 body.seeker { width: auto; min-width: 300px; max-width: 560px; margin: 0 auto; }
 .pin-note { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px; color: #3b4a63; background: #f4f6fa; border: 1px dashed #c9d2e3; }
+
+/* Seekers 0.5.0 (24 Oct 2026): cover letter, interview prep, company snapshot. */
+.letter-box { display: grid; gap: 6px; justify-items: start; }
+.letter-box .bar { width: 100%; height: 5px; border-radius: 99px; background: #e3e8f0; overflow: hidden; }
+.letter-box .bar span { display: block; height: 100%; width: 40%; background: var(--primary); border-radius: 99px; animation: ffbar 1.2s ease-in-out infinite; }
+.letter-ok { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ok); }
+.prep { display: grid; gap: 6px; margin-bottom: 8px; padding: 10px 11px; border-radius: 12px; background: linear-gradient(135deg, #f1f7ff, #f7f2ff); border: 1px solid #d6dcf5; }
+.prep-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--brand-navy); }
+.prep-box { display: grid; gap: 8px; justify-items: start; }
+.prep-box .paged { width: 100%; }
+.prep-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; }
+.prep-answer { margin: 4px 0 0; padding: 7px 9px; border-radius: 8px; background: #fff; border: 1px solid #e3e8f0; line-height: 1.5; }
+.prep-needs { margin: 4px 0 0; font-size: 12px; color: var(--warn); }
+.company-card .chips { margin-top: 4px; }
