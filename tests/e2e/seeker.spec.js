@@ -564,3 +564,42 @@ test('a page the side panel may not read yet: one Allow, then it reads it (0.5.1
   expect(await popup.evaluate(() => window.__asked)).toEqual({ origins: ['https://*/*', 'http://*/*'] });
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('common answers saved to the account; equality answers kept in the browser only (0.5.2)', async () => {
+  await x.connectAs(USER, 'seeker');
+  let saved = null;
+  const COMMON = (v = {}) => [
+    { key: 'right_to_work', label: 'Right to work in the UK', kind: 'yesno', value: v.right_to_work || null },
+    { key: 'salary', label: 'Salary expectation', kind: 'text', value: v.salary || null },
+    { key: 'relocate', label: 'Willing to relocate', kind: 'choice', value: v.relocate || null },
+  ];
+  await x.mockApi({
+    'GET /extension/me': ME(),
+    'GET /extension/seeker/form-answers': () => [200, { answers: [{ key: 'name', label: 'Full name', value: 'Amy Jones', group: 'about' },
+      ...(saved ? [{ key: 'right_to_work', label: 'Right to work in the UK', value: saved.right_to_work, group: 'questions' }, { key: 'salary', label: 'Salary expectation', value: saved.salary, group: 'questions' }] : [])],
+      common: COMMON(saved || {}), missing: [], profile_path: '/candidate' }],
+    'PUT /extension/seeker/form-answers': (req) => { saved = JSON.parse(req.postData()).answers; return [200, { answers: [], common: COMMON(saved), missing: [] }]; },
+  });
+  const popup = await x.popup();
+  await popup.getByRole('button', { name: 'Open the form helper' }).click();
+  await popup.locator('.form-group', { hasText: 'Common questions' }).getByRole('button', { name: 'Add my answers' }).click();
+  await popup.getByLabel('Right to work in the UK').selectOption('Yes');
+  await popup.getByLabel('Salary expectation').fill('£60,000 - £65,000');
+  await popup.getByRole('button', { name: 'Save my answers' }).click();
+  await expect(popup.getByText('£60,000 - £65,000')).toBeVisible();
+  expect(saved).toEqual({ right_to_work: 'Yes', salary: '£60,000 - £65,000', relocate: '' });
+
+  await popup.locator('.eq-group').getByRole('button', { name: 'Add my answers' }).click();
+  await popup.getByLabel('Gender', { exact: true }).selectOption('Woman');
+  await popup.getByLabel('Disability or long-term condition').selectOption('Prefer not to say');
+  await popup.getByRole('button', { name: 'Save on this computer' }).click();
+  await expect(popup.locator('.eq-group .answers li')).toHaveCount(2);
+  const stored = await x.sw.evaluate(() => chrome.storage.local.get('atsEngineEqualityAnswers'));
+  expect(stored.atsEngineEqualityAnswers).toEqual({ gender: 'Woman', disability: 'Prefer not to say' });
+  expect(JSON.stringify(x.calls)).not.toContain('Woman'); // never sent to ATS Engine
+  if (process.env.SHOTS) await popup.setViewportSize({ width: 400, height: 1200 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-form-eq.png`, fullPage: true });
+  await popup.locator('.eq-group').getByRole('button', { name: 'Change my answers' }).click();
+  await popup.getByRole('button', { name: 'Clear them all' }).click();
+  await expect(popup.locator('.eq-group .answers')).toHaveCount(0);
+  await popup.close();
+});

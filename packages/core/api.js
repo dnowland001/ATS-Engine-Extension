@@ -117,6 +117,7 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     // Applying, made easy (0.4.0, 23 Oct 2026). Every paid plan: the follow-up reminder and the form helper.
     followUp: (jobId, days) => request(`/extension/seeker/jobs/${jobId}/follow-up`, { method: 'POST', body: { days } }),
     formAnswers: () => request('/extension/seeker/form-answers'),
+    saveFormAnswers: (answers) => request('/extension/seeker/form-answers', { method: 'PUT', body: { answers } }),
     // Job Seeker Pro and its trial: the advert check and screening answers.
     advertCheck: (jobId) => request(`/extension/seeker/jobs/${jobId}/advert-check`, { method: 'POST', body: {} }),
     // After applying (24 Oct 2026): interview prep for every paid plan, the company snapshot for Pro.

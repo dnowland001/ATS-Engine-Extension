@@ -27,6 +27,7 @@ import { h, notice, fill, paged } from './core/dom.js';
 import { reviewForm } from './core/review-form.js';
 import { summarise, insightSummary, fullFit, INSIGHT_PITCH, EVIDENCE, DOC_DONE } from './core/match.js';
 import { STATUS, MOVE, statusLabel } from './core/tracker.js';
+import { EQUALITY, CHOICES, loadEquality, saveEquality } from './core/equality.js';
 import { dayLabel, relative, seenBefore, journey, FOLLOW_UP, followUpDays, closingBadge, SIGN, APPLY_PRO } from './core/apply.js';
 
 const app = document.getElementById('app');
@@ -151,25 +152,91 @@ async function formPanel(box) {
     if (err.status === 402) return planScreen(err.message);
     return fill(box, notice('bad', err.message));
   }
+  const equality = await loadEquality();
   const answers = res.answers || [];
+  const rowsOf = (rows) => h('ul', { class: 'answers' }, rows.map((a) => h('li', {},
+    h('div', { class: 'answer-text' }, h('span', { class: 'answer-label', text: a.label }), h('span', { class: 'answer-value', text: a.value })),
+    copyButton(a.value))));
+  const questions = answers.filter((a) => a.group === 'questions');
+  const eqRows = EQUALITY.filter((q) => equality[q.key]).map((q) => ({ label: q.label, value: equality[q.key] }));
   fill(
     box,
     ...GROUPS.map(([key, title]) => {
       const rows = answers.filter((a) => a.group === key);
-      return rows.length
-        ? h('div', { class: 'form-group' }, h('span', { class: 'form-group-title', text: title }),
-            h('ul', { class: 'answers' }, rows.map((a) => h('li', {},
-              h('div', { class: 'answer-text' }, h('span', { class: 'answer-label', text: a.label }), h('span', { class: 'answer-value', text: a.value })),
-              copyButton(a.value)))))
-        : null;
+      return rows.length ? h('div', { class: 'form-group' }, h('span', { class: 'form-group-title', text: title }), rowsOf(rows)) : null;
     }),
     (res.missing || []).length
       ? h('div', { class: 'missing' },
           h('span', { text: `Not in your profile yet: ${res.missing.join(', ')}.` }),
           h('button', { class: 'link', type: 'button', text: 'Add them once in your profile →', onclick: () => open(to.route(res.profile_path || '/candidate')) }))
       : null,
-    h('p', { class: 'for', text: 'Only what your ATS Engine profile says - nothing is typed into the form for you, so you check every field.' }),
+    // The questions forms keep asking (0.5.2): written once, here.
+    h('div', { class: 'form-group' },
+      h('span', { class: 'form-group-title', text: 'Common questions' }),
+      questions.length ? rowsOf(questions) : h('p', { class: 'muted', text: 'Right to work, salary expectation, notice, DBS, driving licence - answer them once and copy them into every form.' }),
+      h('button', { class: 'btn-mini', type: 'button', text: questions.length ? 'Change my answers' : 'Add my answers', onclick: () => commonEditor(box, res.common || []) })),
+    // Equality monitoring (0.5.2): on this computer only.
+    h('div', { class: 'form-group eq-group' },
+      h('span', { class: 'form-group-title', text: 'Equality monitoring' }),
+      h('p', { class: 'eq-note' }, h('span', { 'aria-hidden': 'true', text: '🔒 ' }), 'Kept only on this computer, in your browser. Never sent to ATS Engine or anyone else.'),
+      eqRows.length ? rowsOf(eqRows) : null,
+      h('div', { class: 'screen-acts' },
+        h('button', { class: 'btn-mini', type: 'button', text: eqRows.length ? 'Change my answers' : 'Add my answers', onclick: () => equalityEditor(box) }),
+        copyButton('Prefer not to say', 'Copy "Prefer not to say"'))),
+    h('p', { class: 'for', text: 'Only what you have told ATS Engine - nothing is typed into the form for you, so you check every field.' }),
   );
+}
+
+function selectFor(options, value, label) {
+  return h('select', { class: 'eq-select', 'aria-label': label },
+    h('option', { value: '', text: '- not answered -' }),
+    options.map((o) => h('option', { value: o, text: o, selected: o === value ? true : undefined })));
+}
+
+function commonEditor(box, common) {
+  const fields = common.map((q) => {
+    const input = q.kind === 'text'
+      ? h('input', { type: 'text', maxlength: '300', 'aria-label': q.label, placeholder: q.key === 'salary' ? 'e.g. £60,000 - £65,000' : q.key === 'notice' ? 'e.g. One month' : q.key === 'dbs' ? 'e.g. Enhanced DBS, issued March 2026' : '' })
+      : selectFor(CHOICES[q.kind] || CHOICES.yesno, q.value, q.label);
+    if (q.kind === 'text') input.value = q.value || '';
+    return { q, input };
+  });
+  const status = h('div');
+  const save = h('button', { class: 'btn', type: 'button', text: 'Save my answers' });
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    try {
+      await api.saveFormAnswers(Object.fromEntries(fields.map(({ q, input }) => [q.key, input.value.trim()])));
+      formPanel(box);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      save.disabled = false;
+      status.replaceChildren(notice('bad', err.message));
+    }
+  });
+  fill(box,
+    h('span', { class: 'form-group-title', text: 'Common questions' }),
+    h('p', { class: 'muted', text: 'Saved to your ATS Engine account, so they are there on any computer. Leave any blank.' }),
+    h('div', { class: 'eq-form' }, fields.map(({ q, input }) => h('label', { class: 'eq-field' }, h('span', { text: q.label }), input))),
+    status, save,
+    h('button', { class: 'btn secondary', type: 'button', text: 'Cancel', onclick: () => formPanel(box) }));
+}
+
+async function equalityEditor(box) {
+  const current = await loadEquality();
+  const fields = EQUALITY.map((q) => ({ q, input: selectFor(q.options, current[q.key], q.label) }));
+  const save = h('button', { class: 'btn', type: 'button', text: 'Save on this computer' });
+  save.addEventListener('click', async () => {
+    await saveEquality(Object.fromEntries(fields.map(({ q, input }) => [q.key, input.value])));
+    formPanel(box);
+  });
+  fill(box,
+    h('span', { class: 'form-group-title', text: 'Equality monitoring' }),
+    h('p', { class: 'eq-note' }, h('span', { 'aria-hidden': 'true', text: '🔒 ' }), 'These stay in this browser only. ATS Engine never receives them, and removing the extension deletes them.'),
+    h('div', { class: 'eq-form' }, fields.map(({ q, input }) => h('label', { class: 'eq-field' }, h('span', { text: q.label }), input))),
+    save,
+    h('button', { class: 'btn secondary', type: 'button', text: 'Clear them all', onclick: async () => { await saveEquality({}); formPanel(box); } }),
+    h('button', { class: 'btn secondary', type: 'button', text: 'Cancel', onclick: () => formPanel(box) }));
 }
 
 function formHelperScreen() {
