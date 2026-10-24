@@ -19,7 +19,7 @@ function memoryStorage() {
   };
 }
 
-const firefoxRuntime = { id: 'seekers@ats-engine.com', getURL: () => 'moz-extension://0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d/' };
+const firefoxRuntime = { id: 'ats-engine-seekers@ats-engine.com', getURL: () => 'moz-extension://0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d/' };
 const chromeRuntime = { id: 'fbpbkfikiogmljdnojhnhgfobinecgbm', getURL: () => 'chrome-extension://fbpbkfikiogmljdnojhnhgfobinecgbm/' };
 
 describe('the Firefox build', () => {
@@ -32,7 +32,7 @@ describe('the Firefox build', () => {
     expect(manifest.side_panel).toBeUndefined();
     expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
     expect(manifest.background).toEqual({ scripts: ['background.js'], type: 'module' });
-    expect(manifest.browser_specific_settings.gecko.id).toBe('seekers@ats-engine.com');
+    expect(manifest.browser_specific_settings.gecko.id).toBe('ats-engine-seekers@ats-engine.com');
     expect(manifest.browser_specific_settings.gecko.data_collection_permissions.required).toEqual(['websiteContent']);
     expect(manifest.sidebar_action.default_panel).toBe('popup.html');
     expect(manifest.action.default_popup).toBe('popup.html'); // Firefox for Android has no sidebar
@@ -61,7 +61,7 @@ describe('connecting in Firefox', () => {
   it('opens Connect with the challenge of a secret it keeps, and uses the secret once', async () => {
     const s = memoryStorage();
     const url = new URL(await connectLink('https://app.ats-engine.com', firefoxRuntime, s));
-    expect(url.searchParams.get('ext')).toBe('seekers@ats-engine.com');
+    expect(url.searchParams.get('ext')).toBe('ats-engine-seekers@ats-engine.com');
     const { verifier } = s.data[VERIFIER_KEY];
     expect(verifier.length).toBeGreaterThanOrEqual(43);
     const expected = createHash('sha256').update(verifier).digest('base64url');
@@ -86,7 +86,7 @@ describe('connecting in Firefox', () => {
     await s.set({ [VERIFIER_KEY]: { verifier: 'v'.repeat(50), made: Date.now() } });
     const listeners = {};
     const runtime = {
-      id: 'seekers@ats-engine.com',
+      id: 'ats-engine-seekers@ats-engine.com',
       getURL: () => 'moz-extension://0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d/',
       onMessage: { addListener: (fn) => { listeners.internal = fn; } },
     };
@@ -106,7 +106,7 @@ describe('connecting in Firefox', () => {
     });
     expect(done).toEqual({ ok: true });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toMatchObject({ code: 'c'.repeat(48), verifier: 'v'.repeat(50), ext: 'seekers@ats-engine.com' });
+    expect(body).toMatchObject({ code: 'c'.repeat(48), verifier: 'v'.repeat(50), ext: 'ats-engine-seekers@ats-engine.com' });
     expect(s.data[VERIFIER_KEY]).toBeUndefined(); // used, so forgotten
 
     // No secret any more: told to open Connect again, nothing sent.

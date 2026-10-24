@@ -43,7 +43,7 @@ export const ENVS = {
  */
 export const FIREFOX = {
   recruiter: { id: 'recruiters@ats-engine.com', data: ['websiteContent', 'personallyIdentifyingInfo'] },
-  seeker: { id: 'seekers@ats-engine.com', data: ['websiteContent'] },
+  seeker: { id: 'ats-engine-seekers@ats-engine.com', data: ['websiteContent'] },
 };
 
 export function firefoxManifest(m, app, appOrigin) {
