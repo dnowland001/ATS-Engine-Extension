@@ -909,6 +909,8 @@ function screeningStep(jobId) {
       if (res.answer) {
         fill(out, h('div', { class: 'screen-answer' },
           h('p', { class: 'screen-text', text: res.answer }),
+          // "What attracts you to us?" (0.5.3): a nudge to add a reason only they can give.
+          res.personal_prompt ? h('p', { class: 'screen-tip' }, h('strong', { text: 'Make it yours: ' }), res.personal_prompt) : null,
           h('div', { class: 'screen-foot' },
             h('span', { class: 'muted', text: `From ${res.sources} thing${res.sources === 1 ? '' : 's'} on your record. Read it through and make it yours.` }),
             copyButton(res.answer, 'Copy answer'))));
@@ -927,7 +929,7 @@ function screeningStep(jobId) {
   });
   return [
     h('h3', {}, 'Screening questions ', h('span', { class: 'pro-tag', text: 'PRO' })),
-    h('p', { class: 'muted', text: 'Answered from your own CV and STAR stories - nothing invented.' }),
+    h('p', { class: 'muted', text: '“Tell us about a time…” or “What attracts you to us?” - answered from your own CV and the advert, nothing invented.' }),
     q,
     h('div', { class: 'screen-acts' }, write, grab),
     out,

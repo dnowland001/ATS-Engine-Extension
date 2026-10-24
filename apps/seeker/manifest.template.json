@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ATS Engine - Seekers",
   "short_name": "ATS Engine",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Stop applying blindly. See a job? Check how well your CV matches it, see the gaps, and know what to do next - with ATS Engine.",
   "action": {
     "default_title": "ATS Engine - Seekers",

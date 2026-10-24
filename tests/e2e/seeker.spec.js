@@ -603,3 +603,20 @@ test('common answers saved to the account; equality answers kept in the browser 
   await expect(popup.locator('.eq-group .answers')).toHaveCount(0);
   await popup.close();
 });
+
+test('a motivation question: the answer, and a nudge to make it yours (0.5.3)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': PRO_ME2, 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(), 'GET /extension/seeker/jobs/55/insight': INSIGHT2,
+    'POST /extension/seeker/jobs/55/screening-answer': [200, { answer: 'The advert describes leading agile delivery for payments teams, which is what I did at Northgate.', sources: 1, kind: 'motivation', personal_prompt: 'Is there something about banking that matters to you personally?', left_today: 24 }],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await popup.getByRole('button', { name: 'Check my match' }).click();
+  await popup.getByLabel('The screening question').fill('Tell us a little about what attracts you to Acme Bank:');
+  await popup.getByRole('button', { name: 'Write my answer' }).click();
+  await expect(popup.getByText(/what I did at Northgate/)).toBeVisible();
+  await expect(popup.locator('.screen-tip')).toContainText('Make it yours: Is there something about banking that matters to you personally?');
+  await Promise.all([job.close(), popup.close()]);
+});
