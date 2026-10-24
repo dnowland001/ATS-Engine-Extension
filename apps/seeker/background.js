@@ -11,3 +11,17 @@ import { listenForConnect } from './core/connect-listener.js';
 listenForConnect(CONFIG);
 
 chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+
+/*
+ * Firefox (24 Oct 2026): no side panel, but a sidebar that does the same
+ * job. The Firefox build keeps a pop-up as the fallback (Firefox for
+ * Android has no sidebar); where the sidebar exists the toolbar button
+ * opens and closes it instead.
+ */
+const sidebar = globalThis.browser?.sidebarAction;
+if (sidebar?.toggle) {
+  chrome.action.setPopup({ popup: '' });
+  chrome.action.onClicked.addListener(() => {
+    sidebar.toggle();
+  });
+}

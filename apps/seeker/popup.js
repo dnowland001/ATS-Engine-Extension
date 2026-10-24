@@ -19,7 +19,7 @@
  */
 import { CONFIG } from './core/config.js';
 import { createApi } from './core/api.js';
-import { getConnection, clearConnection, connectUrl } from './core/connection.js';
+import { getConnection, clearConnection, connectLink } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
 import { cleanFields, missingRequired } from './core/fields.js';
 import { links } from './core/links.js';
@@ -70,7 +70,7 @@ function connectScreen(message) {
       { class: 'card' },
       h('h1', { text: 'Stop applying blindly' }),
       h('p', { class: 'muted', text: 'See a job? Check it with ATS Engine. See how well your CV matches, what is missing, and what to do before you apply.' }),
-      h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: () => open(connectUrl(CONFIG.appBase, chrome.runtime.id)) }),
+      h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: async () => open(await connectLink(CONFIG.appBase)) }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
       h('p', { class: 'for', text: 'For job seeker accounts. Recruiting? Use ATS Engine - Recruiters instead.' }),
     ),

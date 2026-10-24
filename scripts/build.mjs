@@ -5,6 +5,7 @@
  *   node scripts/build.mjs --env=local        # both, local dev servers
  *   node scripts/build.mjs --app=seeker --zip # one, plus a zip for the download page
  *   node scripts/build.mjs --store --zip      # both, for the Chrome Web Store / Edge Add-ons (no "key")
+ *   node scripts/build.mjs --firefox --zip    # both, for Firefox Add-ons (addons.mozilla.org)
  *
  * The shared core is copied in beside each app as ./core, with a
  * generated core/config.js holding the ATS Engine addresses, and the
@@ -29,7 +30,45 @@ export const ENVS = {
   local: { apiBase: 'http://localhost:8000/api/v1', appBase: 'http://localhost:5173' },
 };
 
-export function build({ app = 'recruiter', env = 'production', out, store = false } = {}) {
+/*
+ * Firefox (24 Oct 2026): the same code, with the manifest Firefox wants.
+ *  - a fixed Firefox ID (ATS Engine's config/extension.php firefox_ids)
+ *    and the data the extension sends, as addons.mozilla.org now asks;
+ *  - background "scripts" rather than a service worker;
+ *  - no Chrome-only "key", "minimum_chrome_version", side panel or
+ *    externally_connectable - the Connect page reaches the extension
+ *    through core/connect-bridge.js on that one page instead;
+ *  - Seekers: a sidebar in place of Chrome's side panel, with the pop-up
+ *    kept for Firefox for Android, which has no sidebar.
+ */
+export const FIREFOX = {
+  recruiter: { id: 'recruiters@ats-engine.com', data: ['websiteContent', 'personallyIdentifyingInfo'] },
+  seeker: { id: 'seekers@ats-engine.com', data: ['websiteContent'] },
+};
+
+export function firefoxManifest(m, app, appOrigin) {
+  const f = structuredClone(m);
+  delete f.key;
+  delete f.minimum_chrome_version;
+  delete f.externally_connectable;
+  delete f.side_panel;
+  f.permissions = f.permissions.filter((p) => p !== 'sidePanel');
+  f.background = { scripts: ['background.js'], type: 'module' };
+  f.browser_specific_settings = {
+    gecko: { id: FIREFOX[app].id, strict_min_version: '140.0', data_collection_permissions: { required: FIREFOX[app].data } },
+    gecko_android: { strict_min_version: '142.0' },
+  };
+  // The whole app, not just /extension/connect: signing in first reaches the
+  // Connect page without a page load. The bridge itself only acts there.
+  f.content_scripts = [{ matches: [`${appOrigin}/*`], js: ['core/connect-bridge.js'], run_at: 'document_idle' }];
+  if (m.side_panel) {
+    f.action = { ...f.action, default_popup: m.side_panel.default_path };
+    f.sidebar_action = { default_title: f.action.default_title, default_panel: m.side_panel.default_path, default_icon: f.action.default_icon, open_at_install: false };
+  }
+  return f;
+}
+
+export function build({ app = 'recruiter', env = 'production', out, store = false, firefox = false } = {}) {
   const cfg = ENVS[env];
   if (!cfg) throw new Error(`Unknown env "${env}" - use ${Object.keys(ENVS).join(' or ')}.`);
   const src = join(root, 'apps', app);
@@ -64,21 +103,26 @@ export function build({ app = 'recruiter', env = 'production', out, store = fals
   // refuse an upload that carries a "key". The store build leaves it out; the
   // download build keeps it, so its ID stays fixed.
   if (store) delete parsed.key;
-  writeFileSync(join(dest, 'manifest.json'), JSON.stringify(parsed, null, 2) + '\n');
+  const final = firefox ? firefoxManifest(parsed, app, new URL(cfg.appBase).origin) : parsed;
+  // The bridge only ever ships in the Firefox build.
+  if (!firefox) rmSync(join(dest, 'core', 'connect-bridge.js'), { force: true });
+  writeFileSync(join(dest, 'manifest.json'), JSON.stringify(final, null, 2) + '\n');
 
-  return { dest, manifest: parsed };
+  return { dest, manifest: final };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const which = arg('app', 'all');
   const env = arg('env', 'production');
   const apps = which === 'all' ? ['recruiter', 'seeker'] : [which];
-  const store = process.argv.includes('--store');
+  const firefox = process.argv.includes('--firefox');
+  const store = process.argv.includes('--store') && !firefox;
+  const folder = firefox ? 'firefox' : store ? 'store' : '';
   for (const app of apps) {
-    const { dest, manifest } = build({ app, env, store, out: store ? join(root, 'dist', 'store', app) : undefined });
+    const { dest, manifest } = build({ app, env, store, firefox, out: folder ? join(root, 'dist', folder, app) : undefined });
     console.log(`Built ${manifest.name} ${manifest.version} -> ${dest}`);
     if (process.argv.includes('--zip')) {
-      const zip = join(root, 'dist', store ? 'store' : '', `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}${store ? '-store' : ''}.zip`);
+      const zip = join(root, 'dist', folder, `ats-engine-${app}-${manifest.version}${env === 'production' ? '' : '-' + env}${folder ? '-' + folder : ''}.zip`);
       rmSync(zip, { force: true });
       execFileSync('zip', ['-qr', zip, '.'], { cwd: dest });
       console.log(`Zipped -> ${zip}`);

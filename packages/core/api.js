@@ -84,8 +84,8 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
 
   return {
     request,
-    exchange: (code, deviceName) =>
-      request('/extension/auth/exchange', { method: 'POST', body: { code, device_name: deviceName }, token: '' }),
+    exchange: (code, deviceName, verifier = null, ext = null) =>
+      request('/extension/auth/exchange', { method: 'POST', body: { code, device_name: deviceName, ...(verifier ? { verifier, ext } : {}) }, token: '' }),
     me: () => request('/extension/me'),
     disconnect: () => request('/extension/auth/token', { method: 'DELETE' }),
     capture: (page) => request('/extension/capture', { method: 'POST', body: { url: page.url, html: page.html, selection: page.selection } }),
