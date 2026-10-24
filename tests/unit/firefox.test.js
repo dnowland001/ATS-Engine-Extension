@@ -126,3 +126,27 @@ describe('connecting in Firefox', () => {
     expect(src).not.toContain("startsWith('/extension/connect')");
   });
 });
+
+describe('the Safari build', () => {
+  it('connects like Firefox, under its fixed connect ID, and opens as a pop-up', () => {
+    const out = mkdtempSync(join(tmpdir(), 'sf-'));
+    const { manifest } = build({ app: 'seeker', out, safari: true });
+    expect(manifest.key).toBeUndefined();
+    expect(manifest.side_panel).toBeUndefined();
+    expect(manifest.externally_connectable).toBeUndefined();
+    expect(manifest.permissions).not.toContain('sidePanel');
+    expect(manifest.action.default_popup).toBe('popup.html');
+    expect(manifest.browser_specific_settings).toEqual({ safari: { strict_min_version: '17.0' } });
+    expect(readFileSync(join(out, 'core', 'connect-bridge.js'), 'utf8')).toContain("const BUILT = 'ats-engine-seekers@ats-engine.com';");
+    expect(readFileSync(join(out, 'core', 'config.js'), 'utf8')).toContain('"connectId": "ats-engine-seekers@ats-engine.com"');
+  });
+
+  it('uses the secret and its connect ID, not Safari\'s own ID', async () => {
+    const s = memoryStorage();
+    const safari = { id: 'com.atsengine.seekers.Extension (ABCDE12345)', getURL: () => 'safari-web-extension://3F2504E0-4F89-11D3-9A0C-0305E82C3301/' };
+    const url = new URL(await connectLink('https://app.ats-engine.com', safari, s, 'ats-engine-seekers@ats-engine.com'));
+    expect(url.searchParams.get('ext')).toBe('ats-engine-seekers@ats-engine.com');
+    expect(url.searchParams.get('challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(s.data[VERIFIER_KEY]).toBeDefined();
+  });
+});

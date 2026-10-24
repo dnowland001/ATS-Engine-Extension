@@ -1,7 +1,7 @@
 /*
- * Firefox only (24 Oct 2026): the extension's script on the ATS Engine
+ * Firefox and Safari only (24 Oct 2026): the extension's script on the ATS Engine
  * Connect page. In Chrome and Edge the page messages the extension
- * directly; Firefox does not allow that, so the page posts the one-time
+ * directly; Firefox and Safari do not allow that, so the page posts the one-time
  * code to this script, which passes it to the extension and posts the
  * answer back. It is loaded on the app, acts only on its /extension/connect
  * page, and only answers messages meant for this extension's own ID.
@@ -15,7 +15,10 @@
  */
 (() => {
   const ext = globalThis.browser ?? globalThis.chrome;
-  const id = ext.runtime.id;
+  // The name ATS Engine knows this build by - the build writes it in for
+  // Safari, whose own extension ID is not under our control.
+  const BUILT = '__CONNECT_ID__';
+  const id = BUILT.startsWith('__') ? ext.runtime.id : BUILT;
   const onConnectPage = () => /^\/extension\/connect\/?$/.test(window.location.pathname);
   const post = (data) => window.postMessage({ source: 'ats-engine-extension', ext: id, ...data }, window.location.origin);
 

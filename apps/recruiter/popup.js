@@ -63,7 +63,7 @@ function connectScreen(message) {
         class: 'btn',
         type: 'button',
         text: 'Connect to ATS Engine',
-        onclick: async () => open(await connectLink(CONFIG.appBase)),
+        onclick: async () => open(await connectLink(CONFIG.appBase, chrome.runtime, chrome.storage.local, CONFIG.connectId || chrome.runtime.id)),
       }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
       h('p', { class: 'for', text: 'For recruiter accounts. Looking for a job? Use ATS Engine - Seekers instead.' }),

@@ -70,7 +70,7 @@ function connectScreen(message) {
       { class: 'card' },
       h('h1', { text: 'Stop applying blindly' }),
       h('p', { class: 'muted', text: 'See a job? Check it with ATS Engine. See how well your CV matches, what is missing, and what to do before you apply.' }),
-      h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: async () => open(await connectLink(CONFIG.appBase)) }),
+      h('button', { class: 'btn', type: 'button', text: 'Connect to ATS Engine', onclick: async () => open(await connectLink(CONFIG.appBase, chrome.runtime, chrome.storage.local, CONFIG.connectId || chrome.runtime.id)) }),
       h('p', { class: 'muted', style: 'margin-top:10px', text: 'Opens ATS Engine in a new tab. Sign in there if asked, press Connect, then come back here.' }),
       h('p', { class: 'for', text: 'For job seeker accounts. Recruiting? Use ATS Engine - Recruiters instead.' }),
     ),

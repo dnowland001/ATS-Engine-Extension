@@ -33,6 +33,7 @@ export function browserName(nav = globalThis.navigator) {
   if (/Edg\//.test(nav?.userAgent || '')) return 'Microsoft Edge';
   if (/Chrome\//.test(nav?.userAgent || '')) return 'Google Chrome';
   if (/Firefox\//.test(nav?.userAgent || '')) return 'Mozilla Firefox';
+  if (/Safari\//.test(nav?.userAgent || '')) return 'Safari';
   return 'Browser';
 }
 
@@ -51,11 +52,24 @@ export function connectUrl(appBase, extensionId, challenge = '') {
 export const VERIFIER_KEY = 'atsEngineConnectVerifier';
 
 export function isFirefox(runtime = chrome.runtime) {
+  return baseUrl(runtime).startsWith('moz-extension:');
+}
+
+function baseUrl(runtime) {
   try {
-    return String(runtime.getURL('')).startsWith('moz-extension:');
+    return String(runtime.getURL(''));
   } catch {
-    return false;
+    return '';
   }
+}
+
+/*
+ * Firefox and Safari (24 Oct 2026) both give every install a random
+ * address and cannot be messaged by the Connect page, so both connect
+ * with the one-time secret and the bridge script.
+ */
+export function usesSecret(runtime = chrome.runtime) {
+  return /^(moz-extension|safari-web-extension):/.test(baseUrl(runtime));
 }
 
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -68,12 +82,17 @@ export async function challengeFor(verifier, cryptoApi = globalThis.crypto) {
   return b64url(await cryptoApi.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
 }
 
-/** The Connect page's address - in Firefox with a fresh secret's challenge. */
-export async function connectLink(appBase, runtime = chrome.runtime, storage = chrome.storage.local) {
-  if (!isFirefox(runtime)) return connectUrl(appBase, runtime.id);
+/**
+ * The Connect page's address - in Firefox and Safari with a fresh secret's
+ * challenge. `id` is the name ATS Engine knows this build by: the extension
+ * ID in Chrome, Edge and Firefox; the build's fixed connect ID in Safari,
+ * whose own ID is not under our control (CONFIG.connectId).
+ */
+export async function connectLink(appBase, runtime = chrome.runtime, storage = chrome.storage.local, id = runtime.id) {
+  if (!usesSecret(runtime)) return connectUrl(appBase, id);
   const verifier = makeVerifier();
   await storage.set({ [VERIFIER_KEY]: { verifier, made: Date.now() } });
-  return connectUrl(appBase, runtime.id, await challengeFor(verifier));
+  return connectUrl(appBase, id, await challengeFor(verifier));
 }
 
 /** The secret for finishing a Firefox connect (null in Chrome and Edge, or when stale). */

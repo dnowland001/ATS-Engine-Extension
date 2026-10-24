@@ -7,7 +7,7 @@
  * checked again here.
  */
 import { createApi } from './api.js';
-import { saveConnection, browserName, readVerifier, forgetVerifier, isFirefox } from './connection.js';
+import { saveConnection, browserName, readVerifier, forgetVerifier, usesSecret } from './connection.js';
 
 export function listenForConnect(config, runtime = chrome.runtime, storage = chrome.storage?.local) {
   const api = createApi({ baseUrl: config.apiBase, getToken: async () => '' });
@@ -20,7 +20,8 @@ export function listenForConnect(config, runtime = chrome.runtime, storage = chr
     }
   };
 
-  const firefox = isFirefox(runtime);
+  const firefox = usesSecret(runtime); // Firefox and Safari
+  const connectId = config.connectId || runtime.id;
   const finish = (code, sendResponse) => {
     (async () => {
       // Firefox: the secret this extension opened Connect with. Kept until
@@ -29,7 +30,7 @@ export function listenForConnect(config, runtime = chrome.runtime, storage = chr
       if (firefox && !verifier) {
         throw new Error('Open Connect again from the ATS Engine button in your toolbar.');
       }
-      const res = await api.exchange(code, browserName(), verifier, firefox ? runtime.id : null);
+      const res = await api.exchange(code, browserName(), verifier, firefox ? connectId : null);
       await saveConnection({ token: res.token, role: res.role, expires_at: res.expires_at, user: res.user });
       if (firefox) await forgetVerifier(storage);
       sendResponse({ ok: true });

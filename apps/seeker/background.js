@@ -24,4 +24,9 @@ if (sidebar?.toggle) {
   chrome.action.onClicked.addListener(() => {
     sidebar.toggle();
   });
+} else if (!chrome.sidePanel) {
+  // A browser with neither (Opera, Vivaldi, older Chromium builds; 24 Oct
+  // 2026): open as a pop-up rather than a button that does nothing. The job
+  // stays pinned, so closing the pop-up loses nothing.
+  chrome.action.setPopup({ popup: 'popup.html' });
 }
