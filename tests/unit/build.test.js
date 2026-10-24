@@ -47,6 +47,8 @@ describe('build', () => {
     // 0.4.1: a side panel, which stays open while they apply ("sidePanel" shows no warning).
     expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
     expect(manifest.side_panel).toEqual({ default_path: 'popup.html' });
+    // 0.5.1: reading the job page from the side panel needs site access - optional, asked for once from a button.
+    expect(manifest.optional_host_permissions).toEqual(['https://*/*', 'http://*/*']);
     expect(manifest.action.default_popup).toBeUndefined();
     expect(manifest.content_scripts).toBeUndefined();
     const { createHash } = await import('node:crypto');

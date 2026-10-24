@@ -185,6 +185,46 @@ function formHelperScreen() {
   formPanel(box);
 }
 
+/*
+ * Reading job pages (0.5.1): the optional site access in the manifest,
+ * asked for once, from a button press - Chrome only shows the prompt
+ * for a click. Nothing is read until the person presses a button.
+ */
+const ALL_SITES = { origins: ['https://*/*', 'http://*/*'] };
+
+async function canReadPages() {
+  try {
+    return await chrome.permissions.contains(ALL_SITES);
+  } catch {
+    return false;
+  }
+}
+
+function allowScreen(retry) {
+  const btn = h('button', { class: 'btn', type: 'button', text: 'Allow ATS Engine to read job pages' });
+  const status = h('div');
+  btn.addEventListener('click', () => {
+    // Called straight from the click, as Chrome requires.
+    chrome.permissions.request(ALL_SITES).then((ok) => {
+      if (ok) return retry();
+      status.replaceChildren(notice('warn', 'Not allowed. You can still paste a job into ATS Engine itself, or allow it here any time.'));
+    }).catch(() => status.replaceChildren(notice('bad', 'Chrome would not show the request. Try again.')));
+  });
+  show(
+    h('div', { class: 'card allow-card' },
+      h('h1', { text: 'One click to read job pages' }),
+      h('p', { text: 'The side panel stays open while you browse, so Chrome needs your OK, once, for ATS Engine to read the job advert you are looking at.' }),
+      h('ul', { class: 'tips' },
+        h('li', { text: 'It reads a page only when you press Check this job or Use the text I highlighted.' }),
+        h('li', { text: 'Nothing runs in the background, and nothing is changed on any page.' }),
+        h('li', { text: 'You can take it back any time in your browser\'s extension settings.' })),
+      status,
+      btn,
+      h('button', { class: 'btn secondary', type: 'button', text: 'Back', onclick: () => homeScreen() }),
+    ),
+  );
+}
+
 async function capture() {
   busy('Reading the page…');
   let page;
@@ -197,9 +237,11 @@ async function capture() {
       const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPage });
       page = result?.result;
     } catch {
-      // Chrome lets the extension read only the page it was opened on. On
-      // another tab, one click on the icon gives it that page too.
-      throw new Error('ATS Engine needs your go-ahead to read this page: click the ATS Engine icon in your toolbar once, then press Check this job again.');
+      // In the side panel Chrome lets the extension read only the page it
+      // was opened on (0.5.1, 24 Oct 2026 - found on LinkedIn). One "Allow",
+      // once, lets it read the job page the person is on whenever they
+      // press Check this job - and still never without that press.
+      return allowScreen(capture);
     }
     if (!page?.html) throw new Error('This page could not be read.');
   } catch (err) {
@@ -779,6 +821,13 @@ function screeningStep(jobId) {
       if (r?.result) q.value = r.result.slice(0, 1000);
       else fill(out, notice('warn', 'Highlight the question on the page first, then press this again.'));
     } catch {
+      if (!(await canReadPages())) {
+        const allow = h('button', { class: 'btn-mini', type: 'button', text: 'Allow ATS Engine to read job pages' });
+        allow.addEventListener('click', () => {
+          chrome.permissions.request(ALL_SITES).then((ok) => fill(out, ok ? notice('ok', 'Allowed. Highlight the question and press Use the text I highlighted again.') : notice('warn', 'Not allowed - paste the question instead.'))).catch(() => {});
+        });
+        return fill(out, notice('warn', 'ATS Engine needs your OK, once, to read this page.'), allow);
+      }
       fill(out, notice('warn', 'This page cannot be read - paste the question instead.'));
     }
   });

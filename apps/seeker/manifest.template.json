@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ATS Engine - Seekers",
   "short_name": "ATS Engine",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Stop applying blindly. See a job? Check how well your CV matches it, see the gaps, and know what to do next - with ATS Engine.",
   "action": {
     "default_title": "ATS Engine - Seekers",
@@ -13,6 +13,7 @@
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "side_panel": { "default_path": "popup.html" },
   "host_permissions": ["__API_ORIGIN__/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "externally_connectable": { "matches": ["__APP_ORIGIN__/*"] },
   "minimum_chrome_version": "116",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArAQe/g4sUKa4P2+k//H84OYFOcinzfNU31SJzdY3/Lf+kzvvlESscJPOYQ+nEEMMI77KI9qhJolSNGUgjo9uR8XJWHZGVhXkgoB6ksL9xVKD0stX7goiFtx6ahVtRrtQFpxbaLRn9vC8wzPA3Y4EvIYtzIShy9Xu5NJKQVkIT4+NBKO4/oJ8q1dSAEcFKIPceeSJZbsYbG23G2idSJGb5RdBAnmyHy/kEHlA+sD/3T2n0m+4ibY0Dlg2V6wtM54fQjN4epSlddm42DwshVkWqLNjdWLT9GxVERk+fAB4UlH+vcJjzQ3BesBuY+ukgOVi8RBBSBXSdJ9Wk2o0rK4BcQIDAQAB"

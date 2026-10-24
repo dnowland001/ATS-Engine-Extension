@@ -546,3 +546,21 @@ test('company snapshot (Pro): asked for, researched, shown as unverified', async
   if (process.env.SHOTS) await card.screenshot({ path: `${process.env.SHOTS}/seeker-company.png` }), await popup.locator('.apply-card').screenshot({ path: `${process.env.SHOTS}/seeker-apply4.png` });
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('a page the side panel may not read yet: one Allow, then it reads it (0.5.1)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({ 'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED] });
+  const { job, popup } = await x.popupOnJob();
+  await popup.evaluate(() => {
+    const real = chrome.scripting.executeScript.bind(chrome.scripting);
+    window.__allowed = false;
+    chrome.scripting.executeScript = (o) => (window.__allowed ? real(o) : Promise.reject(new Error('Cannot access contents of the page')));
+    chrome.permissions.request = async (p) => { window.__asked = p; window.__allowed = true; return true; };
+  });
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.getByRole('heading', { name: 'One click to read job pages' })).toBeVisible();
+  await popup.getByRole('button', { name: 'Allow ATS Engine to read job pages' }).click();
+  await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toBeVisible();
+  expect(await popup.evaluate(() => window.__asked)).toEqual({ origins: ['https://*/*', 'http://*/*'] });
+  await Promise.all([job.close(), popup.close()]);
+});
