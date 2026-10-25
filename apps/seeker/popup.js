@@ -104,9 +104,13 @@ function homeScreen(message) {
       'div',
       { class: 'card tool-card' },
       h('div', { class: 'tool-head' }, h('span', { class: 'tool-icon', 'aria-hidden': 'true', text: '⧉' }), h('div', {},
-        h('h2', { text: 'Filling in an application form?' }),
-        h('p', { class: 'muted', style: 'margin:0', text: 'Your name, phone, address and links, one click to copy each.' }))),
-      h('button', { class: 'btn secondary', type: 'button', style: 'margin-top:10px', text: 'Open the form helper', onclick: () => formHelperScreen() }),
+        h('h2', {}, 'Filling in an application form? ', jobInsight ? null : h('span', { class: 'pro-tag', text: 'PRO' })),
+        h('p', { class: 'muted', style: 'margin:0', text: jobInsight
+          ? 'Fill it in with one click, or copy your details and saved answers.'
+          : 'With Job Seeker Pro, one click fills in the form with your details and saved answers.' }))),
+      jobInsight
+        ? h('button', { class: 'btn secondary', type: 'button', style: 'margin-top:10px', text: 'Open the form helper', onclick: () => formHelperScreen() })
+        : h('button', { class: 'btn-mini gold-mini', type: 'button', style: 'margin-top:10px', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) }),
     ),
   );
 }
@@ -150,13 +154,16 @@ const GROUPS = [['about', 'About you'], ['work', 'Work'], ['links', 'Links']];
  * frame. It never presses submit; each filled box is outlined in green.
  * Site access is asked for straight from the click, as Chrome requires.
  */
+/* Job Seeker: the form helper is Job Seeker Pro (25 Oct 2026) - shown locked, with the way to it. */
+function formHelperLocked() {
+  return h('div', { class: 'form-group fill-card fill-card--locked' },
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h3', { text: 'Fill in this form for me' })),
+    h('p', { class: 'muted', text: 'With Job Seeker Pro, one click puts your details and saved answers into the form on the page - you check them, then send it yourself. Or copy each one from here.' }),
+    h('p', { class: 'muted', text: 'Free in the 14-day trial.' }),
+    h('button', { class: 'btn-mini gold-mini', type: 'button', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) }));
+}
+
 function fillCard() {
-  if (!jobInsight) {
-    return h('div', { class: 'form-group fill-card fill-card--locked' },
-      h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h3', { text: 'Fill in this form for me' })),
-      h('p', { class: 'muted', text: 'With Job Seeker Pro, one click puts your details and saved answers into the form on the page - you check them, then send it yourself.' }),
-      h('button', { class: 'btn-mini', type: 'button', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) }));
-  }
   const out = h('div', { 'aria-live': 'polite' });
   const eq = h('input', { type: 'checkbox', id: 'fill-eq' });
   const btn = h('button', { class: 'btn', type: 'button', text: 'Fill in this form' });
@@ -211,6 +218,7 @@ async function runFill(out, btn, includeEquality, asked) {
 }
 
 async function formPanel(box) {
+  if (!jobInsight) return fill(box, formHelperLocked());
   fill(box, h('p', { class: 'muted', text: 'Getting your details…' }));
   let res;
   try {
@@ -736,9 +744,13 @@ function applyCard(jobId, job = {}) {
     path,
     h('ol', { class: 'apply-steps' },
       h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '1' }), h('div', { class: 'step-body' },
-        h('h3', { text: 'Fill in the form' }),
-        h('p', { class: 'muted', text: 'Your details from your profile - click to copy, paste into the form.' }),
-        formBtn, form)),
+        ...(jobInsight
+          ? [h('h3', { text: 'Fill in the form' }),
+            h('p', { class: 'muted', text: 'One click fills it in from your profile - or copy each detail.' }),
+            formBtn, form]
+          : [h('h3', {}, 'Fill in the form ', h('span', { class: 'pro-tag', text: 'PRO' })),
+            h('p', { class: 'muted', text: 'One click fills in the form with your details and saved answers. With Job Seeker Pro, free in the 14-day trial.' }),
+            h('button', { class: 'btn-mini gold-mini', type: 'button', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) })]))),
       h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '2' }), h('div', { class: 'step-body' }, ...letterStep(job))),
       h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '3' }), h('div', { class: 'step-body' }, ...screeningStep(jobId))),
       h('li', { class: 'apply-step' }, h('span', { class: 'step-num', 'aria-hidden': 'true', text: '4' }), h('div', { class: 'step-body' },

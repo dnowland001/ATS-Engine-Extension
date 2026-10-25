@@ -99,6 +99,7 @@ export const SIGN = {
 
 /* What Job Seeker Pro adds to applying, for the locked rows and the pitch. */
 export const APPLY_PRO = [
+  'Application forms filled in for you in one click, or your answers ready to copy',
   'Screening questions answered from your own CV - nothing made up',
   'The closing date, and a reminder before it passes',
   'Warning signs in the advert: fees, bank details, WhatsApp-only contact',

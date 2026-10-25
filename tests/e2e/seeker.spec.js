@@ -279,7 +279,7 @@ test('Job Seeker: Job Insight is sold, with the upgrade one click away', async (
   const card = popup.locator('.pro-card');
   await expect(card.getByRole('heading', { name: 'Know if this job is worth your evening' })).toBeVisible();
   await expect(card).toContainText('free in the 14-day trial');
-  await expect(card.locator('.pro-pitch li')).toHaveCount(9); // Job Insight's five, applying's three and the company snapshot
+  await expect(card.locator('.pro-pitch li')).toHaveCount(10); // Job Insight's five, filling in forms, applying's three and the company snapshot
   expect(x.calls.some((c) => c.path.endsWith('/insight'))).toBe(false); // never asked for
   if (process.env.SHOTS) await popup.setViewportSize({ width: 380, height: 1300 }), await popup.screenshot({ path: `${process.env.SHOTS}/seeker-teaser.png`, fullPage: true });
   await card.getByRole('button', { name: 'Upgrade to Job Seeker Pro' }).click();
@@ -422,21 +422,23 @@ test('seen before, Pro: the journey, advert check, screening answer, form helper
   await Promise.all([job.close(), popup.close()]);
 });
 
-test('Job Seeker: screening answers locked with the Pro pitch, no advert check; the form helper from home', async () => {
+test('Job Seeker: the form helper and screening answers locked with the Pro pitch, no advert check (0.5.5)', async () => {
   await x.connectAs(USER, 'seeker');
   await x.mockApi({
     'GET /extension/me': ME(), 'POST /extension/capture': [200, CAPTURED], 'POST /extension/seeker/jobs': [201, JOB()],
     'GET /extension/seeker/jobs/55/application': TRACK(), 'GET /extension/seeker/form-answers': ANSWERS,
   });
   const { job, popup } = await x.popupOnJob();
-  await popup.getByRole('button', { name: 'Open the form helper' }).click();
-  await expect(popup.getByRole('heading', { name: 'Your form helper' })).toBeVisible();
-  await expect(popup.getByText('07700 900123')).toBeVisible();
-  await popup.getByRole('button', { name: 'Back' }).click();
+  await expect(popup.getByRole('heading', { name: /Filling in an application form\? PRO/ })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Open the form helper' })).toHaveCount(0);
   await popup.getByRole('button', { name: 'Check this job' }).click();
   await popup.getByRole('button', { name: 'Check my match' }).click();
   await expect(popup.getByRole('heading', { name: 'Apply for this job' })).toBeVisible();
-  await expect(popup.getByRole('button', { name: 'See Job Seeker Pro' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Fill in the form PRO' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Show my answers' })).toHaveCount(0);
+  await expect(popup.getByRole('button', { name: 'See Job Seeker Pro' })).toHaveCount(2); // the form, and screening questions
+  expect(x.calls.some((c) => c.path === '/extension/seeker/form-answers')).toBe(false);
+  await expect(popup.getByText(/Application forms filled in for you in one click/)).toBeVisible(); // in the Pro pitch
   await expect(popup.getByRole('heading', { name: 'Advert check' })).toHaveCount(0);
   expect(x.calls.some((c) => c.path.endsWith('/advert-check'))).toBe(false);
   await expect(popup.getByText(/Screening questions answered from your own CV/)).toBeVisible(); // in the Pro pitch
@@ -565,7 +567,7 @@ test('a page the side panel may not read yet: one Allow, then it reads it (0.5.1
   await Promise.all([job.close(), popup.close()]);
 });
 
-test('common answers saved to the account; equality answers kept in the browser only (0.5.2)', async () => {
+test('Pro: common answers saved to the account; equality answers kept in the browser only (0.5.2)', async () => {
   await x.connectAs(USER, 'seeker');
   let saved = null;
   const COMMON = (v = {}) => [
@@ -574,7 +576,7 @@ test('common answers saved to the account; equality answers kept in the browser 
     { key: 'relocate', label: 'Willing to relocate', kind: 'choice', value: v.relocate || null },
   ];
   await x.mockApi({
-    'GET /extension/me': ME(),
+    'GET /extension/me': PRO_ME2,
     'GET /extension/seeker/form-answers': () => [200, { answers: [{ key: 'name', label: 'Full name', value: 'Amy Jones', group: 'about' },
       ...(saved ? [{ key: 'right_to_work', label: 'Right to work in the UK', value: saved.right_to_work, group: 'questions' }, { key: 'salary', label: 'Salary expectation', value: saved.salary, group: 'questions' }] : [])],
       common: COMMON(saved || {}), missing: [], profile_path: '/candidate' }],
@@ -660,17 +662,13 @@ test('Pro: Fill in this form puts their answers into the page, outlined, and nev
   await Promise.all([job.close(), popup.close()]);
 });
 
-test('Job Seeker (not Pro): the form helper shows Fill in this form locked, with the Pro pitch (0.5.5)', async () => {
+test('Job Seeker (not Pro): the home screen sells the form helper; nothing is fetched for it (0.5.5)', async () => {
   await x.connectAs(USER, 'seeker');
-  await x.mockApi({
-    'GET /extension/me': ME(),
-    'GET /extension/seeker/form-answers': [200, { answers: [], common: [], missing: [], profile_path: '/candidate' }],
-  });
+  await x.mockApi({ 'GET /extension/me': ME() });
   const popup = await x.popup();
-  await popup.getByRole('button', { name: 'Open the form helper' }).click();
-  await expect(popup.locator('.fill-card--locked')).toContainText('Fill in this form for me');
-  await expect(popup.getByRole('button', { name: 'Fill in this form' })).toHaveCount(0);
-  await expect(popup.getByRole('button', { name: 'See Job Seeker Pro' })).toBeVisible();
-  expect(x.calls.some((c) => c.path === '/extension/seeker/form-fill')).toBe(false);
+  await expect(popup.locator('.tool-card')).toContainText('With Job Seeker Pro, one click fills in the form');
+  await popup.locator('.tool-card').getByRole('button', { name: 'See Job Seeker Pro' }).click();
+  expect((await popup.evaluate(() => window.__opened))[0]).toContain('subscription');
+  expect(x.calls.some((c) => c.path.startsWith('/extension/seeker/form-'))).toBe(false);
   await popup.close();
 });
