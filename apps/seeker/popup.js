@@ -321,7 +321,7 @@ function formHelperScreen() {
   show(
     h('div', { class: 'card' },
       h('h1', { text: 'Your form helper' }),
-      h('p', { class: 'muted', text: 'Click Copy, then paste into the form (Ctrl+V).' }),
+      h('p', { class: 'muted', text: 'Fill in the form in one click, or copy each answer and paste it (Ctrl+V).' }),
       box,
       h('button', { class: 'btn secondary', type: 'button', style: 'margin-top:12px', text: 'Back', onclick: () => homeScreen() }),
     ),
