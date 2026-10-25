@@ -118,6 +118,8 @@ export function createApi({ baseUrl, getToken, onUnauthorised = () => {}, fetchI
     followUp: (jobId, days) => request(`/extension/seeker/jobs/${jobId}/follow-up`, { method: 'POST', body: { days } }),
     formAnswers: () => request('/extension/seeker/form-answers'),
     saveFormAnswers: (answers) => request('/extension/seeker/form-answers', { method: 'PUT', body: { answers } }),
+    // Fill in this form (0.5.5): Job Seeker Pro and its trial - the server keeps the plan rule.
+    formFill: (host) => request('/extension/seeker/form-fill', { method: 'POST', body: { host } }),
     // Job Seeker Pro and its trial: the advert check and screening answers.
     advertCheck: (jobId) => request(`/extension/seeker/jobs/${jobId}/advert-check`, { method: 'POST', body: {} }),
     // After applying (24 Oct 2026): interview prep for every paid plan, the company snapshot for Pro.

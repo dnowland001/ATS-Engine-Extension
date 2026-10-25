@@ -21,6 +21,7 @@ import { CONFIG } from './core/config.js';
 import { createApi } from './core/api.js';
 import { getConnection, clearConnection, connectLink } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
+import { fillForm, fillSummary } from './core/form-filler.js';
 import { cleanFields, missingRequired } from './core/fields.js';
 import { links } from './core/links.js';
 import { h, notice, fill, paged } from './core/dom.js';
@@ -142,6 +143,73 @@ function copyButton(text, label = 'Copy') {
 
 const GROUPS = [['about', 'About you'], ['work', 'Work'], ['links', 'Links']];
 
+/*
+ * Fill in this form (0.5.5, Job Seeker Pro and its trial). The answers come
+ * from ATS Engine's form-fill endpoint - where the plan rule lives - and are
+ * put into the EMPTY boxes on the page that the filler recognises, in every
+ * frame. It never presses submit; each filled box is outlined in green.
+ * Site access is asked for straight from the click, as Chrome requires.
+ */
+function fillCard() {
+  if (!jobInsight) {
+    return h('div', { class: 'form-group fill-card fill-card--locked' },
+      h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h3', { text: 'Fill in this form for me' })),
+      h('p', { class: 'muted', text: 'With Job Seeker Pro, one click puts your details and saved answers into the form on the page - you check them, then send it yourself.' }),
+      h('button', { class: 'btn-mini', type: 'button', text: 'See Job Seeker Pro', onclick: () => open(to.subscription()) }));
+  }
+  const out = h('div', { 'aria-live': 'polite' });
+  const eq = h('input', { type: 'checkbox', id: 'fill-eq' });
+  const btn = h('button', { class: 'btn', type: 'button', text: 'Fill in this form' });
+  btn.addEventListener('click', () => {
+    // Straight from the click: Chrome shows the prompt only for a user gesture.
+    const asked = chrome.permissions.request(ALL_SITES).catch(() => false);
+    runFill(out, btn, eq.checked, asked);
+  });
+  return h('div', { class: 'form-group fill-card' },
+    h('div', { class: 'pro-head' }, h('span', { class: 'pro-tag', text: 'PRO' }), h('h3', { text: 'Fill in this form for me' })),
+    h('p', { class: 'muted', text: 'Puts your details and saved answers into the empty boxes it recognises on this page. It never presses submit.' }),
+    h('label', { class: 'fill-eq', for: 'fill-eq' }, eq, h('span', { text: ' Include my equality answers (from this computer)' })),
+    btn,
+    out);
+}
+
+async function runFill(out, btn, includeEquality, asked) {
+  btn.disabled = true;
+  btn.textContent = 'Filling in…';
+  const done = () => { btn.disabled = false; btn.textContent = 'Fill in this form'; };
+  try {
+    if (!(await asked)) {
+      fill(out, notice('warn', 'ATS Engine needs your OK to work on job pages. Press Fill in this form again and choose Allow.'));
+      return done();
+    }
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https?:/i.test(tab.url || '')) {
+      fill(out, notice('warn', 'Open the application form in this tab first, then press Fill in this form.'));
+      return done();
+    }
+    let res;
+    try {
+      res = await api.formFill(new URL(tab.url).hostname);
+    } catch (err) {
+      if (err.status === 401) return connectScreen(err.message);
+      if (err.status === 402) { fill(out, notice('warn', err.message)); return done(); }
+      throw err;
+    }
+    const answers = Object.fromEntries((res.answers || []).map((a) => [a.key, a.value]));
+    const equality = includeEquality ? await loadEquality() : {};
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: fillForm,
+      args: [{ answers, equality, includeEquality }],
+    });
+    const summary = fillSummary(results);
+    fill(out, notice(summary.tone, summary.text));
+  } catch {
+    fill(out, notice('bad', 'This page could not be filled in. Some sites block it - copy your answers below instead.'));
+  }
+  done();
+}
+
 async function formPanel(box) {
   fill(box, h('p', { class: 'muted', text: 'Getting your details…' }));
   let res;
@@ -161,6 +229,7 @@ async function formPanel(box) {
   const eqRows = EQUALITY.filter((q) => equality[q.key]).map((q) => ({ label: q.label, value: equality[q.key] }));
   fill(
     box,
+    fillCard(),
     ...GROUPS.map(([key, title]) => {
       const rows = answers.filter((a) => a.group === key);
       return rows.length ? h('div', { class: 'form-group' }, h('span', { class: 'form-group-title', text: title }), rowsOf(rows)) : null;
@@ -183,7 +252,7 @@ async function formPanel(box) {
       h('div', { class: 'screen-acts' },
         h('button', { class: 'btn-mini', type: 'button', text: eqRows.length ? 'Change my answers' : 'Add my answers', onclick: () => equalityEditor(box) }),
         copyButton('Prefer not to say', 'Copy "Prefer not to say"'))),
-    h('p', { class: 'for', text: 'Only what you have told ATS Engine - nothing is typed into the form for you, so you check every field.' }),
+    h('p', { class: 'for', text: jobInsight ? 'Only what you have told ATS Engine. Fill in this form uses only empty boxes it recognises and never sends anything - check every field before you submit.' : 'Only what you have told ATS Engine - nothing is typed into the form for you, so you check every field.' }),
   );
 }
 

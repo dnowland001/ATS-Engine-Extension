@@ -620,3 +620,57 @@ test('a motivation question: the answer, and a nudge to make it yours (0.5.3)', 
   await expect(popup.locator('.screen-tip')).toContainText('Make it yours: Is there something about banking that matters to you personally?');
   await Promise.all([job.close(), popup.close()]);
 });
+
+test('Pro: Fill in this form puts their answers into the page, outlined, and never submits (0.5.5)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': PRO_ME2,
+    'GET /extension/seeker/form-answers': [200, { answers: [{ key: 'name', label: 'Full name', value: 'Amy Jones', group: 'about' }], common: [], missing: [], profile_path: '/candidate' }],
+    'POST /extension/seeker/form-fill': [200, { answers: [
+      { key: 'name', label: 'Full name', value: 'Amy Jones' },
+      { key: 'email', label: 'Email', value: 'amy@example.com' },
+      { key: 'notice', label: 'Notice period', value: 'One month' },
+    ] }],
+  });
+  const { job, popup } = await x.popupOnJob();
+  await job.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', `<form id="apply">
+      <label for="fn">First name</label><input id="fn">
+      <label for="ln">Last name</label><input id="ln">
+      <label for="em">Email address</label><input id="em" type="email">
+      <label for="np">Notice period</label><input id="np">
+      <label for="pw">Password</label><input id="pw" type="password">
+      <button>Send</button></form>`);
+    window.__sent = false;
+    document.getElementById('apply').addEventListener('submit', (e) => { window.__sent = true; e.preventDefault(); });
+  });
+  await popup.evaluate(() => { chrome.permissions.request = async () => true; });
+  await popup.getByRole('button', { name: 'Open the form helper' }).click();
+  await popup.getByRole('button', { name: 'Fill in this form' }).click();
+  await expect(popup.getByText(/Filled in 4 boxes/)).toBeVisible();
+  expect(await job.inputValue('#fn')).toBe('Amy');
+  expect(await job.inputValue('#ln')).toBe('Jones');
+  expect(await job.inputValue('#em')).toBe('amy@example.com');
+  expect(await job.inputValue('#np')).toBe('One month');
+  expect(await job.inputValue('#pw')).toBe('');
+  expect(await job.getAttribute('#fn', 'data-ats-engine-filled')).toBe('1');
+  expect(await job.evaluate(() => window.__sent)).toBe(false);
+  const call = x.calls.find((c) => c.path === '/extension/seeker/form-fill');
+  expect(call.body).toEqual({ host: '127.0.0.1' });
+  await Promise.all([job.close(), popup.close()]);
+});
+
+test('Job Seeker (not Pro): the form helper shows Fill in this form locked, with the Pro pitch (0.5.5)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': ME(),
+    'GET /extension/seeker/form-answers': [200, { answers: [], common: [], missing: [], profile_path: '/candidate' }],
+  });
+  const popup = await x.popup();
+  await popup.getByRole('button', { name: 'Open the form helper' }).click();
+  await expect(popup.locator('.fill-card--locked')).toContainText('Fill in this form for me');
+  await expect(popup.getByRole('button', { name: 'Fill in this form' })).toHaveCount(0);
+  await expect(popup.getByRole('button', { name: 'See Job Seeker Pro' })).toBeVisible();
+  expect(x.calls.some((c) => c.path === '/extension/seeker/form-fill')).toBe(false);
+  await popup.close();
+});
