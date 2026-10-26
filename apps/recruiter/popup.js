@@ -13,6 +13,7 @@
  */
 import { CONFIG } from './core/config.js';
 import { createApi } from './core/api.js';
+import { mountAlerts } from './core/alerts-ui.js';
 import { getConnection, clearConnection, connectLink } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
 import { VACANCY_FIELDS, DUPLICATE_REASONS, CANDIDATE_FIELDS, MATCH_REASONS, cleanFields, cleanCandidate, missingRequired } from './core/fields.js';
@@ -37,6 +38,9 @@ const api = createApi({
   getToken: async () => (await getConnection())?.token || '',
   onUnauthorised: () => clearConnection(),
 });
+
+// Messages and new inbox emails waiting in ATS Engine (26 Oct 2026).
+mountAlerts({ api, appBase: CONFIG.appBase, getConnection });
 
 function show(...nodes) {
   fill(app, ...nodes);

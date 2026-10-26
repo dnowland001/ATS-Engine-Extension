@@ -13,7 +13,10 @@ describe('build', () => {
     const out = mkdtempSync(join(tmpdir(), 'ext-'));
     const { manifest } = build({ out });
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
+    // alarms (26 Oct 2026, the alerts badge) shows no install warning; desktop
+    // alerts are an OPTIONAL permission, asked for only when turned on.
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'alarms', 'scripting', 'storage']);
+    expect(manifest.optional_permissions).toEqual(['notifications']);
     expect(manifest.host_permissions).toEqual(['https://api.ats-engine.com/*']);
     expect(manifest.externally_connectable.matches).toEqual(['https://app.ats-engine.com/*']);
     expect(manifest.content_scripts).toBeUndefined();
@@ -45,7 +48,8 @@ describe('build', () => {
     const { manifest } = build({ app: 'seeker', out });
     expect(manifest.name).toBe('ATS Engine - Seekers');
     // 0.4.1: a side panel, which stays open while they apply ("sidePanel" shows no warning).
-    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'alarms', 'scripting', 'sidePanel', 'storage']);
+    expect(manifest.optional_permissions).toEqual(['notifications']);
     expect(manifest.side_panel).toEqual({ default_path: 'popup.html' });
     // 0.5.1: reading the job page from the side panel needs site access - optional, asked for once from a button.
     expect(manifest.optional_host_permissions).toEqual(['https://*/*', 'http://*/*']);

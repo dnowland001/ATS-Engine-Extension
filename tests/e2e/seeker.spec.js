@@ -672,3 +672,31 @@ test('Job Seeker (not Pro): the home screen sells the form helper; nothing is fe
   expect(x.calls.some((c) => c.path.startsWith('/extension/seeker/form-'))).toBe(false);
   await popup.close();
 });
+
+test('alerts: a message and an email waiting show on the icon and as a banner with a way to them (0.5.7)', async () => {
+  await x.connectAs(USER, 'seeker');
+  let seen = false;
+  await x.mockApi({
+    'GET /extension/me': ME(),
+    'GET /extension/alerts': () => [200, seen
+      ? { messages: 1, emails: 0, total: 1, latest_emails: [], paths: { messages: '/communications', emails: '/emails' } }
+      : { messages: 1, emails: 2, total: 3, latest_emails: [{ from: 'Jane Smith', subject: 'Interview on Tuesday', at: '2026-10-26T10:00:00Z' }], paths: { messages: '/communications', emails: '/emails' } }],
+    'POST /extension/alerts/seen': () => { seen = true; return [200, { ok: true }]; },
+  });
+  const popup = await x.popup();
+  const banner = popup.getByTestId('alert-banner');
+  await expect(banner).toContainText('You have 1 new message and 2 new emails');
+  await expect(banner).toContainText('Jane Smith: Interview on Tuesday');
+  expect(await x.sw.evaluate(() => chrome.action.getBadgeText({}))).toBe('3');
+
+  await banner.getByRole('button', { name: 'Open inbox' }).click();
+  expect((await popup.evaluate(() => window.__opened)).at(-1)).toBe('https://app.ats-engine.com/emails');
+  await expect(banner).toContainText('You have 1 new message');
+  await expect(banner.getByRole('button', { name: 'Open inbox' })).toHaveCount(0);
+  await banner.getByRole('button', { name: 'Open messages' }).click();
+  expect((await popup.evaluate(() => window.__opened)).at(-1)).toBe('https://app.ats-engine.com/communications');
+
+  // Desktop alerts are off until turned on, and ask the browser first.
+  await expect(popup.locator('#alerts-desktop')).toHaveText('Desktop alerts: off');
+  await popup.close();
+});

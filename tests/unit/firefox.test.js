@@ -30,7 +30,8 @@ describe('the Firefox build', () => {
     expect(manifest.minimum_chrome_version).toBeUndefined();
     expect(manifest.externally_connectable).toBeUndefined();
     expect(manifest.side_panel).toBeUndefined();
-    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'storage']);
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'alarms', 'scripting', 'storage']);
+    expect(manifest.optional_permissions).toEqual(['notifications']);
     expect(manifest.background).toEqual({ scripts: ['background.js'], type: 'module' });
     expect(manifest.browser_specific_settings.gecko.id).toBe('ats-engine-seekers@ats-engine.com');
     expect(manifest.browser_specific_settings.gecko.data_collection_permissions.required).toEqual(['websiteContent']);

@@ -13,7 +13,7 @@ turns each folder into an Xcode project, and that has to be done on a Mac.
 
 ## On the Mac, for each extension
 
-1. Unzip `ats-engine-seeker-0.5.6-safari.zip` into a folder called `ats-engine-seeker` in your home folder.
+1. Unzip `ats-engine-seeker-0.5.7-safari.zip` into a folder called `ats-engine-seeker` in your home folder.
 2. Open **Terminal** and run (one line):
 
    ```
