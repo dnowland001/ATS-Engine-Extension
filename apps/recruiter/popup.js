@@ -577,14 +577,13 @@ function planScreen(message) {
       'div',
       { class: 'card' },
       h('h1', { text: 'Part of the paid plans' }),
-      h('p', { text: message || 'The ATS Engine browser extension comes with Job Seeker and Job Seeker Pro, and with the 14-day free trial.' }),
+      h('p', { text: message || 'The ATS Engine - Recruiters extension comes with ATS Engine Standard and Professional, and with the 14-day free trial.' }),
       h('button', { class: 'btn', type: 'button', text: 'See plans in ATS Engine', onclick: () => open(to.subscription()) }),
     ),
   );
 }
 
 function handleError(err) {
-  if (err.status === 402) return planScreen(err.message);
   if (err.status === 401) return connectScreen(err.message);
   if (err.status === 402) return planScreen(err.message);
   getConnection().then((c) => homeScreen(c, err.message));
