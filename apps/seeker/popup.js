@@ -405,12 +405,20 @@ async function capture() {
   }
   // Already in their ATS Engine (22 Oct 2026): show its fit straight away
   // - the same card the app shows - rather than asking to check it again.
-  const before = (res.existing || [])[0];
+  // Only a sure match jumps straight to the saved fit (0.5.8, 27 Oct 2026 -
+  // Dennis: a Maxwell Bond "Project Manager" opened for a different Remote
+  // "Project Manager"). Same title and place alone is a guess: the form
+  // below still says it was checked before.
+  const before = (res.existing || []).find((e) => e.reason !== 'same_title_and_location');
   if (before?.id) {
     busy('You have this job already - loading your fit…');
     try {
       const job = await api.seekerJob(before.id);
-      return resultScreen(job?.data || job, { known: true, recheck: () => reviewScreen(res, page) });
+      const saved = job?.data || job;
+      // Saved without a readable advert: check it again from this page
+      // rather than show "no score" for the old copy.
+      if (!saved?.candidate_fit || saved.candidate_fit.scoreable === false) return reviewScreen(res, page);
+      return resultScreen(saved, { known: true, recheck: () => reviewScreen(res, page) });
     } catch (err) {
       if (err.status === 401) return connectScreen(err.message);
       // Not readable any more - fall through to checking it as new.

@@ -309,6 +309,31 @@ test('a job already in their ATS Engine shows its fit straight away, without che
   await Promise.all([job.close(), popup.close()]);
 });
 
+test('a job with only the same title and place is not taken as this one, and a saved job with no score is checked again (0.5.8)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 56, title: 'Delivery Manager', company: 'Maxwell Bond', reason: 'same_title_and_location' }] }],
+  });
+  let { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toBeVisible();
+  expect(x.calls.some((c) => c.path === '/extension/seeker/jobs/56')).toBe(false);
+  await Promise.all([job.close(), popup.close()]);
+
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 55, title: 'Delivery Manager', reason: 'same_link' }] }],
+    'GET /extension/seeker/jobs/55': [200, JOB({ ...FIT, scoreable: false, score: null })],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+  });
+  ({ job, popup } = await x.popupOnJob());
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toBeVisible();
+  await expect(popup.getByText('No score for this one yet')).toHaveCount(0);
+  await Promise.all([job.close(), popup.close()]);
+});
+
 test('with a tailored CV the ring is the full fit, with the best CV beside it, and Download', async () => {
   await x.connectAs(USER, 'seeker');
   await x.mockApi({
