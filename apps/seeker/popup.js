@@ -455,6 +455,10 @@ function reviewScreen(res, page) {
       h('p', { class: 'source', style: 'margin-top:10px', text: `From ${res.fields?.source_site || ''}` }),
       status,
       h('button', { class: 'btn green', type: 'button', text: 'Check my match', onclick: check }),
+      // A way out (0.5.8, 27 Oct 2026 - Dennis: "there appears to be no way
+      // to cancel"): nothing is saved until Check my match, so Cancel just
+      // goes back to the start.
+      h('button', { class: 'btn secondary', type: 'button', text: 'Cancel', onclick: () => homeScreen() }),
     ),
   );
 }

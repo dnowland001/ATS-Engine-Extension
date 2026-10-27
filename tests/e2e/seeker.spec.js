@@ -564,6 +564,9 @@ test('a page the side panel may not read yet: one Allow, then it reads it (0.5.1
   await popup.getByRole('button', { name: 'Allow ATS Engine to read job pages' }).click();
   await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toBeVisible();
   expect(await popup.evaluate(() => window.__asked)).toEqual({ origins: ['https://*/*', 'http://*/*'] });
+  // Cancel goes back to the start without saving anything (0.5.8).
+  await popup.getByRole('button', { name: 'Cancel' }).click();
+  await expect(popup.getByRole('heading', { name: 'Is this the job?' })).toHaveCount(0);
   await Promise.all([job.close(), popup.close()]);
 });
 
