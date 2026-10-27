@@ -563,19 +563,21 @@ function resultScreen(job, opts = {}) {
       s.requirements.length > 8 ? h('p', { class: 'muted', style: 'margin-top:6px', text: `and ${s.requirements.length - 8} more in the full analysis.` }) : null,
       s.cv ? h('p', { class: 'muted', style: 'margin-top:10px', text: `Matched against ${s.cv}` }) : null,
     ),
-    advert,
+    // Order (0.5.8, 27 Oct 2026 - Dennis): the fit, then applying (steps 1-4),
+    // then what to do next, and the Pro cards together underneath.
     tracker,
-    company,
-    insight,
     h(
       'div',
-      { class: 'card' },
+      { class: 'card actions-card' },
       s.next.kind === 'upload' ? h('button', { class: 'btn', type: 'button', text: 'Upload your CV', onclick: () => open(to.cvLibrary()) }) : null,
       id && (tailorFirst || canTailor) ? tailorBlock(id, tailorFirst) : null,
       id ? h('button', { class: `btn${tailorFirst ? ' secondary' : ''}`, type: 'button', text: 'View full analysis', onclick: () => open(to.jobAnalysis(id)) }) : null,
       opts.recheck ? h('button', { class: 'btn secondary', type: 'button', text: 'Check it again from this page', onclick: opts.recheck }) : null,
       h('button', { class: 'btn secondary', type: 'button', text: 'Check another job', onclick: async () => { await unpin(); start(); } }),
     ),
+    advert,
+    company,
+    insight,
   );
 }
 

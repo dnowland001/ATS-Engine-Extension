@@ -334,6 +334,24 @@ test('a job with only the same title and place is not taken as this one, and a s
   await Promise.all([job.close(), popup.close()]);
 });
 
+test('the fit, then applying, then the buttons, then the Pro cards together (0.5.8)', async () => {
+  await x.connectAs(USER, 'seeker');
+  await x.mockApi({
+    'GET /extension/me': DOC_ME,
+    'POST /extension/capture': [200, { ...CAPTURED, existing: [{ id: 55, title: 'Delivery Manager', reason: 'same_link' }] }],
+    'GET /extension/seeker/jobs/55': [200, JOB()],
+    'GET /extension/seeker/jobs/55/application': TRACK(),
+  });
+  const { job, popup } = await x.popupOnJob();
+  await popup.getByRole('button', { name: 'Check this job' }).click();
+  await expect(popup.locator('.actions-card')).toBeVisible();
+  const order = await popup.evaluate(() => [...document.querySelectorAll('.card')].map((c) => (c.classList.contains('apply-card') ? 'apply' : c.classList.contains('actions-card') ? 'actions' : c.classList.contains('pro-card') ? 'pro' : 'other')));
+  const at = (k) => order.indexOf(k);
+  expect(at('apply')).toBeLessThan(at('actions'));
+  if (at('pro') !== -1) expect(at('actions')).toBeLessThan(at('pro'));
+  await Promise.all([job.close(), popup.close()]);
+});
+
 test('with a tailored CV the ring is the full fit, with the best CV beside it, and Download', async () => {
   await x.connectAs(USER, 'seeker');
   await x.mockApi({
