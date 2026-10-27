@@ -14,7 +14,7 @@
 import { CONFIG } from './core/config.js';
 import { createApi } from './core/api.js';
 import { mountAlerts } from './core/alerts-ui.js';
-import { getConnection, clearConnection, connectLink } from './core/connection.js';
+import { getConnection, clearConnection, connectLink, onConnectionChange } from './core/connection.js';
 import { readPage } from './core/page-reader.js';
 import { VACANCY_FIELDS, DUPLICATE_REASONS, CANDIDATE_FIELDS, MATCH_REASONS, cleanFields, cleanCandidate, missingRequired } from './core/fields.js';
 import { h, notice, fill, paged } from './core/dom.js';
@@ -621,4 +621,13 @@ document.getElementById('disconnect').addEventListener('click', async () => {
   connectScreen('Disconnected from ATS Engine.');
 });
 
+// Connected in another tab (the app's Connect page): show it here at once.
+let lastToken;
+getConnection().then((c) => { lastToken = c?.token || null; });
+onConnectionChange((c) => {
+  const token = c?.token || null;
+  const fresh = token && token !== lastToken; // a new connection; a removed one already shows its own screen
+  lastToken = token;
+  if (fresh) start();
+});
 start();

@@ -22,6 +22,17 @@ export async function saveConnection(connection, storage = chrome.storage.local)
   await storage.set({ [KEY]: connection });
 }
 
+/*
+ * The side panel stays open while the person connects in another tab
+ * (27 Oct 2026 - it kept showing "Connect to ATS Engine" after the app
+ * said Connected). Tells the panel when the connection is saved or removed.
+ */
+export function onConnectionChange(callback, c = globalThis.chrome) {
+  c?.storage?.onChanged?.addListener((changes, area) => {
+    if (area === 'local' && changes[KEY]) callback(changes[KEY].newValue || null);
+  });
+}
+
 export async function clearConnection(storage = chrome.storage.local) {
   await storage.remove(KEY);
 }

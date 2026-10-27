@@ -55,6 +55,17 @@ test('not connected: the seeker pitch and Connect', async () => {
   await popup.close();
 });
 
+test('connecting while the panel is open updates it without reopening', async () => {
+  await x.disconnectLocally();
+  await x.mockApi({ 'GET /extension/me': ME() });
+  const popup = await x.popup();
+  await expect(popup.getByRole('heading', { name: 'Stop applying blindly' })).toBeVisible();
+  await x.connectAs(USER, 'seeker'); // what the app's Connect page does
+  await expect(popup.locator('#who')).toContainText('Amy Jones');
+  await expect(popup.getByRole('heading', { name: 'Stop applying blindly' })).toBeHidden();
+  await popup.close();
+});
+
 test('check a job: review, match, requirements, next step, tracker, tailor', async () => {
   await x.connectAs(USER, 'seeker');
   await x.mockApi({
